@@ -8,6 +8,43 @@ args: "[project-name]"
 
 You are starting a new GSD (Get Shit Done) project. Follow this workflow to gather requirements and set up the project structure.
 
+## Step 0: Detect and Confirm Repository
+
+Before anything else, detect the repository and confirm with the user.
+
+### Detect Repository
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || hg root 2>/dev/null || echo "")
+```
+
+### Confirm with User
+
+If a repository is detected, ask the user to confirm:
+
+```
+Detected repository: [REPO_ROOT]
+
+Is this the correct repository for this project? [Y/n]
+```
+
+- If user confirms (Y or Enter): proceed with this repository
+- If user says no (n): ask them to `cd` to the correct repository and run the command again
+
+If NO repository is detected:
+
+```
+No Git or Mercurial repository detected in current directory.
+
+Please either:
+  1. Navigate to a repository: cd /path/to/your/repo
+  2. Initialize a new repository: git init
+
+Then run /gsd-new-project again.
+```
+
+Do NOT proceed without a confirmed repository.
+
 ## Project Name
 
 If a project name is provided as: $ARGUMENTS - use that name.
@@ -168,6 +205,7 @@ After creating all files, provide a summary:
 ```
 GSD Project Initialized: [project-name]
 
+Repository: [REPO_ROOT]
 Project ID: [id from register_project]
 Planning directory: ~/.claude/planning/projects/[project-name]/
 
