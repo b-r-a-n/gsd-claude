@@ -150,6 +150,81 @@ gsd_with_lock() {
   return $result
 }
 
+# =============================================================================
+# Atomic File Operations
+# =============================================================================
+
+# Atomically write content to a file using temp+rename pattern
+# Usage: gsd_atomic_write <file> <content>
+# Or:    echo "content" | gsd_atomic_write <file>
+# Returns: 0 on success, 1 on error
+gsd_atomic_write() {
+  local target_file="$1"
+  local content="$2"
+  local target_dir
+  local temp_file
+
+  if [ -z "$target_file" ]; then
+    echo "Error: gsd_atomic_write requires a file path" >&2
+    return 1
+  fi
+
+  # Ensure target directory exists
+  target_dir=$(dirname "$target_file")
+  if [ ! -d "$target_dir" ]; then
+    mkdir -p "$target_dir" || return 1
+  fi
+
+  # Create temp file in same directory (required for atomic rename)
+  temp_file=$(mktemp "${target_file}.XXXXXX") || return 1
+
+  # Write content - either from argument or stdin
+  if [ -n "$content" ]; then
+    printf '%s' "$content" > "$temp_file"
+  else
+    cat > "$temp_file"
+  fi
+
+  if [ $? -ne 0 ]; then
+    rm -f "$temp_file" 2>/dev/null
+    return 1
+  fi
+
+  # Atomic rename - if this fails, clean up temp file
+  if ! mv "$temp_file" "$target_file"; then
+    rm -f "$temp_file" 2>/dev/null
+    return 1
+  fi
+
+  return 0
+}
+
+# Atomically append content to a file (not truly atomic, but locked)
+# Usage: gsd_atomic_append <file> <content>
+# Returns: 0 on success, 1 on error
+gsd_atomic_append() {
+  local target_file="$1"
+  local content="$2"
+  local lockfile="${target_file}"
+
+  if [ -z "$target_file" ]; then
+    echo "Error: gsd_atomic_append requires a file path" >&2
+    return 1
+  fi
+
+  # Use lock for append since we can't do atomic append with rename
+  if ! gsd_lock_acquire "$lockfile"; then
+    echo "Error: Could not acquire lock for append" >&2
+    return 1
+  fi
+
+  printf '%s' "$content" >> "$target_file"
+  local result=$?
+
+  gsd_lock_release "$lockfile"
+  return $result
+}
+
 # Execute the function if called directly
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
   "$@"
