@@ -24,13 +24,36 @@ Requirements → Acceptance Criteria → Implementation → Tests
 
 ## Workflow
 
+### Step 0: Get Active Project
+
+First, determine the active project:
+
+```bash
+PROJECT=$("~/.claude/commands/gsd/scripts/project.sh" get_active_project)
+```
+
+If no active project is found:
+```
+No active GSD project found.
+
+Run one of:
+  /gsd-new-project       Create a new project
+  /gsd-set-project <name> Switch to an existing project
+  /gsd-list-projects     See available projects
+```
+
+Set the planning directory based on active project:
+```bash
+PLANNING_DIR="$HOME/.claude/planning/projects/$PROJECT"
+```
+
 ### Step 1: Load Requirements
 
-Read verification context:
-1. `.planning/PROJECT.md` - Success criteria
-2. `.planning/REQUIREMENTS.md` - Detailed requirements
-3. `.planning/phases/phase-XX/PLAN.md` - What was planned
-4. `.planning/phases/phase-XX/PROGRESS.md` - What was completed
+Read verification context from the project's planning directory:
+1. `$PLANNING_DIR/PROJECT.md` - Success criteria
+2. `$PLANNING_DIR/REQUIREMENTS.md` - Detailed requirements
+3. `$PLANNING_DIR/phases/phase-XX/PLAN.md` - What was planned
+4. `$PLANNING_DIR/phases/phase-XX/PROGRESS.md` - What was completed
 
 ### Step 2: Map Requirements to Implementation
 
@@ -84,7 +107,7 @@ Review implementation for:
 
 ### Step 5: Generate Verification Report
 
-Create `.planning/phases/phase-XX/VERIFICATION.md`:
+Create `$PLANNING_DIR/phases/phase-XX/VERIFICATION.md`:
 
 ```markdown
 # Verification Report: Phase [N]
@@ -158,7 +181,7 @@ Items requiring human verification:
 
 ### Step 6: Update State
 
-Update `.planning/STATE.md`:
+Update `$PLANNING_DIR/STATE.md`:
 
 ```markdown
 ## Current Status
@@ -181,7 +204,7 @@ Requirements: [X/Y] fully met
 Tests: [passed/total] passed
 Issues: [N] found ([critical], [high], [medium], [low])
 
-Report: .planning/phases/phase-XX/VERIFICATION.md
+Report: $PLANNING_DIR/phases/phase-XX/VERIFICATION.md
 
 [If PASS]
 Next: Run /gsd-plan-phase [N+1] to continue
