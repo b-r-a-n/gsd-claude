@@ -225,6 +225,113 @@ gsd_atomic_append() {
   return $result
 }
 
+# =============================================================================
+# Locked Convenience Functions
+# =============================================================================
+
+# Read a file (simple wrapper, reads are atomic on POSIX for reasonable sizes)
+# Usage: gsd_locked_read <file>
+# Outputs: File contents to stdout
+# Returns: 0 on success, 1 if file doesn't exist
+gsd_locked_read() {
+  local file="$1"
+
+  if [ -z "$file" ]; then
+    echo "Error: gsd_locked_read requires a file path" >&2
+    return 1
+  fi
+
+  if [ ! -f "$file" ]; then
+    return 1
+  fi
+
+  cat "$file"
+}
+
+# Write to a file with exclusive lock
+# Usage: gsd_locked_write <file> <content>
+# Or:    echo "content" | gsd_locked_write <file>
+# Returns: 0 on success, 1 on error
+gsd_locked_write() {
+  local file="$1"
+  local content="$2"
+
+  if [ -z "$file" ]; then
+    echo "Error: gsd_locked_write requires a file path" >&2
+    return 1
+  fi
+
+  # Acquire lock
+  if ! gsd_lock_acquire "$file"; then
+    echo "Error: Could not acquire lock for write" >&2
+    return 1
+  fi
+
+  # Atomic write
+  local result
+  if [ -n "$content" ]; then
+    gsd_atomic_write "$file" "$content"
+    result=$?
+  else
+    gsd_atomic_write "$file"
+    result=$?
+  fi
+
+  # Release lock
+  gsd_lock_release "$file"
+  return $result
+}
+
+# Update a file atomically using a transformation command
+# Usage: gsd_locked_update <file> <command> [args...]
+# The command receives current file content on stdin and should output new content
+# Example: gsd_locked_update "state.md" sed 's/old/new/g'
+# Returns: 0 on success, 1 on error
+gsd_locked_update() {
+  local file="$1"
+  shift
+  local cmd=("$@")
+
+  if [ -z "$file" ]; then
+    echo "Error: gsd_locked_update requires a file path" >&2
+    return 1
+  fi
+
+  if [ ${#cmd[@]} -eq 0 ]; then
+    echo "Error: gsd_locked_update requires a command" >&2
+    return 1
+  fi
+
+  # Acquire lock
+  if ! gsd_lock_acquire "$file"; then
+    echo "Error: Could not acquire lock for update" >&2
+    return 1
+  fi
+
+  local result=0
+  local new_content
+
+  # Read current content, transform, and capture result
+  if [ -f "$file" ]; then
+    new_content=$("${cmd[@]}" < "$file")
+    result=$?
+  else
+    # File doesn't exist - pass empty input
+    new_content=$(echo -n | "${cmd[@]}")
+    result=$?
+  fi
+
+  if [ $result -eq 0 ]; then
+    # Write transformed content
+    gsd_atomic_write "$file" "$new_content"
+    result=$?
+  fi
+
+  # Release lock
+  gsd_lock_release "$file"
+  return $result
+}
+
 # Execute the function if called directly
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
   "$@"
