@@ -109,10 +109,11 @@ echo ""
 
 # Agents
 AGENTS=(
-    "agents/planning-agent.md"
-    "agents/execution-agent.md"
-    "agents/verification-agent.md"
-    "agents/context-agent.md"
+    "agents/planner.md"
+    "agents/executor.md"
+    "agents/verifier.md"
+    "agents/researcher.md"
+    "agents/codebase-mapper.md"
 )
 
 for agent in "${AGENTS[@]}"; do
@@ -240,11 +241,11 @@ if [[ -f "$GSD_DIR/scripts/project.sh" ]]; then
         check_warn "list_projects function not found"
     fi
 
-    # Test get_project_dir if it exists
-    if type get_project_dir &>/dev/null; then
-        check_pass "get_project_dir function exists"
+    # Test get_project_planning_dir if it exists
+    if type get_project_planning_dir &>/dev/null; then
+        check_pass "get_project_planning_dir function exists"
     else
-        check_warn "get_project_dir function not found (optional)"
+        check_warn "get_project_planning_dir function not found (optional)"
     fi
 
 else
