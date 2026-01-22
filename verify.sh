@@ -52,6 +52,7 @@ SCRIPTS=(
     "scripts/detect-vcs.sh"
     "scripts/project.sh"
     "scripts/vcs.sh"
+    "scripts/lock.sh"
 )
 
 for script in "${SCRIPTS[@]}"; do
@@ -136,6 +137,7 @@ EXECUTABLES=(
     "scripts/detect-vcs.sh"
     "scripts/project.sh"
     "scripts/vcs.sh"
+    "scripts/lock.sh"
     "adapters/git-adapter.sh"
     "adapters/hg-adapter.sh"
 )
