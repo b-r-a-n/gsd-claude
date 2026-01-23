@@ -99,3 +99,40 @@ Always use the VCS abstraction layer:
 # View diff
 ~/.claude/commands/gsd/scripts/vcs.sh vcs-diff
 ```
+
+## Background Work
+
+When tasks require long-running operations (builds, tests, monitoring), follow these guidelines:
+
+### DO:
+- **Prefer foreground** for operations under 30 seconds
+- **Track immediately** after spawning background work:
+  ```bash
+  # After spawning background shell
+  ~/.claude/commands/gsd/scripts/background.sh track_background shell <id> "<description>"
+
+  # After spawning background task
+  ~/.claude/commands/gsd/scripts/background.sh track_background task <id> "<description>"
+  ```
+- **Set timeouts** on long-running operations
+- **Check completion** before marking task done
+- **Report tracked work** to the orchestrating agent
+
+### DON'T:
+- Spawn background work without tracking the ID
+- Fire-and-forget long-running operations
+- Use background execution for quick operations
+- Leave orphaned processes/agents running
+
+### Completion Check
+
+Before reporting a task complete, verify any background work has finished:
+```bash
+# Check if any background work is tracked
+~/.claude/commands/gsd/scripts/background.sh has_background && echo "Background work still tracked"
+
+# List what's tracked
+~/.claude/commands/gsd/scripts/background.sh list_background
+```
+
+See `~/.claude/commands/gsd/docs/background-patterns.md` for detailed patterns and examples.
