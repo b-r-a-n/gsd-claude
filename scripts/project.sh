@@ -125,7 +125,7 @@ compute_project_id() {
   echo -n "${repo_root}:${project_name}" | shasum -a 1 | cut -c1-12
 }
 
-# Get active project (priority: env var > repo-local > auto-select single > global (if repo matches) > last-active > commit history)
+# Get active project (priority: env var > repo-local > auto-select single > last-active > commit history)
 get_active_project() {
   # 1. Environment variable (highest priority - explicit override, no repo validation)
   if [ -n "$GSD_PROJECT" ]; then
@@ -159,17 +159,7 @@ get_active_project() {
     return 0
   fi
 
-  # 4. Global .current-project file (only if project matches current repo - backward compat)
-  if [ -f "$PLANNING_DIR/.current-project" ]; then
-    local project
-    project=$(cat "$PLANNING_DIR/.current-project" | tr -d ' \n')
-    if [ -n "$project" ] && validate_project_repo "$project"; then
-      echo "$project"
-      return 0
-    fi
-  fi
-
-  # 5. Most recent last-active (only for repo-matching projects)
+  # 4. Most recent last-active (only for repo-matching projects)
   if [ -n "$repo_projects" ]; then
     local latest_time=0
     local latest_project=""
@@ -190,7 +180,7 @@ get_active_project() {
     fi
   fi
 
-  # 6. Most recent commit with [project] tag
+  # 5. Most recent commit with [project] tag
   local from_commit
   from_commit=$(git log --oneline -50 2>/dev/null | grep -o '\[[^]]*\]' | head -1 | tr -d '[]')
   if [ -n "$from_commit" ]; then

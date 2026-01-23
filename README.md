@@ -138,12 +138,15 @@ See what's been completed and what remains.
 └── QUICKSTART.md       # Quick start guide
 
 ~/.claude/planning/
-└── projects/           # Project-specific planning data
-    └── <project>/
-        ├── overview.md
-        ├── phases/
-        ├── progress/
-        └── sessions/
+├── projects/           # Project-specific planning data
+│   └── <project>/
+│       ├── project.yml
+│       ├── phases/
+│       ├── progress/
+│       └── sessions/
+└── repos/              # Repo-scoped state (for session isolation)
+    └── <repo-hash>/
+        └── current-project
 ```
 
 ## How It Works
@@ -170,9 +173,10 @@ GSD_PROJECT=my-project claude
 
 **Priority order for project detection:**
 1. `GSD_PROJECT` environment variable (highest priority)
-2. `.current-project` file in planning directory
-3. Most recently active project (by `last-active` timestamp)
-4. Most recent commit with `[project]` tag
+2. Repo-scoped `current-project` file (in `~/.claude/planning/repos/<hash>/`)
+3. Auto-select if exactly one project exists for the current repo
+4. Most recently active project for this repo (by `last-active` timestamp)
+5. Most recent commit with `[project]` tag
 
 This allows you to have multiple terminals working on different projects without interference.
 
@@ -182,7 +186,7 @@ GSD is designed for safe concurrent usage by multiple Claude instances.
 
 ### File Locking
 
-All state file operations (STATE.md, PROGRESS.md, `.current-project`) use file locking to prevent race conditions:
+All state file operations (STATE.md, PROGRESS.md, repo-scoped `current-project`) use file locking to prevent race conditions:
 
 - **Linux**: Uses `flock` for advisory locking
 - **macOS**: Uses a custom lock file mechanism for compatibility
