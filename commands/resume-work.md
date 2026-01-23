@@ -181,6 +181,44 @@ Also touch the project's last-active file to update access time:
 touch "$PLANNING_DIR/last-active"
 ```
 
+### Step 6.5: Session File Cleanup
+
+After successfully resuming, offer to clean up the session file.
+
+```
+Session file: sessions/session-${SESSION_ID}.md
+
+Options:
+1. Keep session file (for history/reference)
+2. Delete session file (clean up)
+
+Choice [1]:
+```
+
+**If user chooses to keep (default)**:
+- Mark the session as resumed by appending to the file:
+  ```markdown
+  ---
+  **Status**: Resumed on [YYYY-MM-DD HH:MM]
+  ```
+- This distinguishes it from orphaned sessions that were never resumed
+
+**If user chooses to delete**:
+```bash
+rm "$PLANNING_DIR/sessions/session-${SESSION_ID}.md"
+```
+
+Log the action in STATE.md history:
+```markdown
+- [YYYY-MM-DD HH:MM] Session file session-${SESSION_ID}.md [kept/deleted]
+```
+
+**Tip**: To clean up old session files across all projects, use:
+```bash
+~/.claude/commands/gsd/scripts/session-gc.sh list_stale_sessions 7
+~/.claude/commands/gsd/scripts/session-gc.sh clean_stale_sessions 7
+```
+
 ### Step 7: Ready to Continue
 
 ```
