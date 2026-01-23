@@ -37,6 +37,34 @@ cd ~/.claude/commands/gsd
 - **Git or Mercurial** - At least one version control system
 - **shasum** - For checksum verification (usually pre-installed)
 
+## Permissions Setup
+
+GSD runs shell scripts and git commands that may trigger Claude Code permission prompts. To run without prompts, add these permissions to your Claude Code settings:
+
+**Quick setup** - Add to `~/.claude/settings.json`:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(~/.claude/commands/gsd/**)",
+      "Bash(git status*)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(git log*)",
+      "Bash(git diff*)",
+      "Bash(git rev-parse*)",
+      "Read(~/.claude/planning/**)",
+      "Write(~/.claude/planning/**)"
+    ]
+  }
+}
+```
+
+For detailed setup options including per-project configuration, see [docs/PERMISSIONS.md](docs/PERMISSIONS.md).
+
+Pre-made templates are available in `docs/settings-global.json` and `docs/settings-project.json`.
+
 ## Quick Start
 
 ### 1. Create a new project
