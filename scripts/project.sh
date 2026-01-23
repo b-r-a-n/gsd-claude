@@ -15,6 +15,66 @@ ensure_planning_dirs() {
   mkdir -p "$PROJECTS_DIR"
 }
 
+# Get current repo root (or pwd if not in a repo)
+get_repo_root() {
+  git rev-parse --show-toplevel 2>/dev/null || pwd
+}
+
+# Compute hash of repo root path (first 12 chars of SHA1)
+# Used to create repo-scoped state directories
+get_repo_hash() {
+  local repo_root
+  repo_root=$(get_repo_root)
+  echo -n "$repo_root" | shasum -a 1 | cut -c1-12
+}
+
+# Get repo-scoped state directory, creating if needed
+# Returns: ~/.claude/planning/repos/<hash>/
+get_repo_state_dir() {
+  local hash
+  hash=$(get_repo_hash)
+  local repo_state_dir="$PLANNING_DIR/repos/$hash"
+  mkdir -p "$repo_state_dir"
+  echo "$repo_state_dir"
+}
+
+# Validate that a project belongs to current repo
+# Returns: 0 if match, 1 if mismatch or error
+validate_project_repo() {
+  local project="$1"
+  local project_yml="$PROJECTS_DIR/$project/project.yml"
+
+  # Check project exists
+  if [ ! -f "$project_yml" ]; then
+    return 1
+  fi
+
+  # Get project's registered repo
+  local project_repo
+  project_repo=$(grep '^repository:' "$project_yml" 2>/dev/null | cut -d' ' -f2-)
+
+  # Get current repo
+  local current_repo
+  current_repo=$(get_repo_root)
+
+  # Compare
+  [ "$project_repo" = "$current_repo" ]
+}
+
+# Get projects registered for current repo
+# Returns: newline-separated list of project names
+get_projects_for_repo() {
+  ensure_planning_dirs
+  for dir in "$PROJECTS_DIR"/*/; do
+    [ -d "$dir" ] || continue
+    local name
+    name=$(basename "$dir")
+    if validate_project_repo "$name"; then
+      echo "$name"
+    fi
+  done
+}
+
 # Compute project ID from repo root and project name
 compute_project_id() {
   local project_name="$1"
