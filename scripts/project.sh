@@ -68,7 +68,7 @@ set_active_project() {
   fi
 
   gsd_atomic_write "$PLANNING_DIR/.current-project" "$project"
-  touch "$PROJECTS_DIR/$project/last-active"
+  gsd_safe_touch "$PROJECTS_DIR/$project/last-active"
   echo "Active project: $project"
 }
 
@@ -130,7 +130,7 @@ description: |
   fi
 
   # Create last-active marker
-  touch "$project_dir/last-active"
+  gsd_safe_touch "$project_dir/last-active"
 
   # Set as current project
   gsd_atomic_write "$PLANNING_DIR/.current-project" "$project_name"
