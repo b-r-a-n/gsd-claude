@@ -9,29 +9,45 @@ Display the current status of the GSD project.
 
 ## Workflow
 
-### Step 1: Get Active Project
+### Step 0: Get Active Project (with Ambiguity Handling)
 
-First, determine the active project:
+First, check project status for this repository:
 
 ```bash
-PROJECT=$("~/.claude/commands/gsd/scripts/project.sh" get_active_project)
+AMBIGUITY=$("~/.claude/commands/gsd/scripts/project.sh" check_project_ambiguity 2>/tmp/gsd-projects)
 ```
 
-If no active project is found:
+Handle each case:
+
+**Case: "none"** - No projects for this repo:
 ```
-No active GSD project found.
+No GSD projects found for this repository.
 
 Run one of:
   /gsd:commands:new-project       Create a new project
-  /gsd:commands:set-project <name> Switch to an existing project
-  /gsd:commands:list-projects     See available projects
   /gsd:commands:discover-projects Find projects from commits
 ```
 
-Set the planning directory based on active project:
+**Case: "single" or "selected"** - Proceed normally:
 ```bash
+PROJECT=$("~/.claude/commands/gsd/scripts/project.sh" get_active_project)
 PLANNING_DIR="$HOME/.claude/planning/projects/$PROJECT"
 ```
+
+**Case: "ambiguous"** - Multiple projects, no explicit selection:
+1. Read the project list from `/tmp/gsd-projects` (one project per line)
+2. Use the `AskUserQuestion` tool to prompt the user:
+   - Question: "Which project would you like to work on?"
+   - Options: List each project from the file
+3. After user selects, persist the choice:
+   ```bash
+   ~/.claude/commands/gsd/scripts/project.sh set_active_project "<selected-project>"
+   ```
+4. Then get the active project and continue:
+   ```bash
+   PROJECT=$("~/.claude/commands/gsd/scripts/project.sh" get_active_project)
+   PLANNING_DIR="$HOME/.claude/planning/projects/$PROJECT"
+   ```
 
 ### Step 2: Load State Files
 
