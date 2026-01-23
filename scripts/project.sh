@@ -1,6 +1,12 @@
 #!/bin/bash
 # Project management functions
 
+# Get script directory for sourcing other scripts
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source locking utilities
+source "$SCRIPT_DIR/lock.sh"
+
 PLANNING_DIR="$HOME/.claude/planning"
 PROJECTS_DIR="$PLANNING_DIR/projects"
 
@@ -61,7 +67,7 @@ set_active_project() {
     return 1
   fi
 
-  echo "$project" > "$PLANNING_DIR/.current-project"
+  gsd_atomic_write "$PLANNING_DIR/.current-project" "$project"
   touch "$PROJECTS_DIR/$project/last-active"
   echo "Active project: $project"
 }
@@ -94,7 +100,7 @@ description: |
 EOF
 
   touch "$project_dir/last-active"
-  echo "$project_name" > "$PLANNING_DIR/.current-project"
+  gsd_atomic_write "$PLANNING_DIR/.current-project" "$project_name"
 
   echo "$project_id"
 }
