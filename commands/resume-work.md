@@ -42,10 +42,12 @@ PLANNING_DIR="$HOME/.claude/planning/projects/$PROJECT"
 If no session ID provided, find the most recent for this project:
 
 ```bash
-ls -t "$PLANNING_DIR/sessions/session-*.md" | head -1
+# Pattern matches both old format (session-YYYY-MM-DD-HHMM.md) and
+# new format (session-YYYY-MM-DD-HHMMSS-XXXX.md) per FR-009
+ls -t "$PLANNING_DIR/sessions/session-"*.md 2>/dev/null | head -1
 ```
 
-If session ID provided, look for matching file.
+If session ID provided, look for matching file (supports partial match).
 
 If no sessions found:
 ```
@@ -97,7 +99,7 @@ Continue anyway? [y/N]
 ║                     Resuming GSD Session                      ║
 ╠══════════════════════════════════════════════════════════════╣
 ║ Project: [project-name]                                      ║
-║ Session: [session-YYYY-MM-DD-HHMM]                           ║
+║ Session: [session-ID]                                        ║
 ║ Paused:  [YYYY-MM-DD HH:MM] ([X hours/days] ago)            ║
 ╠══════════════════════════════════════════════════════════════╣
 ║ STATE AT PAUSE                                                ║
@@ -153,10 +155,10 @@ Update `$PLANNING_DIR/STATE.md`:
 
 ## Session
 - **Resumed at**: [YYYY-MM-DD HH:MM]
-- **Resumed from**: sessions/session-YYYY-MM-DD-HHMM.md
+- **Resumed from**: sessions/session-${SESSION_ID}.md
 
 ## History
-- [YYYY-MM-DD HH:MM] Work resumed from session-YYYY-MM-DD-HHMM
+- [YYYY-MM-DD HH:MM] Work resumed from session-${SESSION_ID}
 ```
 
 Also touch the project's last-active file to update access time:
@@ -190,9 +192,9 @@ If multiple sessions exist, user can:
 
 ```
 Available sessions:
-  1. session-2024-01-15-1430 (2 hours ago) - Phase 2, Task 2.3
-  2. session-2024-01-14-1700 (yesterday) - Phase 2, Task 2.1
-  3. session-2024-01-10-0900 (5 days ago) - Phase 1, Task 1.5
+  1. session-2024-01-15-143022-a1b2 (2 hours ago) - Phase 2, Task 2.3
+  2. session-2024-01-14-170015-c3d4 (yesterday) - Phase 2, Task 2.1
+  3. session-2024-01-10-090030-e5f6 (5 days ago) - Phase 1, Task 1.5
 
 Resume which session? [1]:
 ```

@@ -71,7 +71,13 @@ If there are uncommitted changes:
 
 ### Step 3: Create Session Snapshot
 
-Create `$PLANNING_DIR/sessions/session-YYYY-MM-DD-HHMM.md`:
+Generate a unique session filename with seconds and random suffix to prevent collisions (FR-009):
+```bash
+# Generate unique session ID: YYYYMMDD-HHMMSS-XXXX (XXXX = 4 random hex chars)
+SESSION_ID=$(date +%Y-%m-%d-%H%M%S)-$(head -c 2 /dev/urandom | xxd -p)
+```
+
+Create `$PLANNING_DIR/sessions/session-${SESSION_ID}.md`:
 
 ```markdown
 # Session Snapshot
@@ -139,7 +145,7 @@ Update `$PLANNING_DIR/STATE.md` with pause information:
 
 ## Session
 - **Paused at**: [YYYY-MM-DD HH:MM]
-- **Session file**: sessions/session-YYYY-MM-DD-HHMM.md
+- **Session file**: sessions/session-${SESSION_ID}.md
 - **Note**: [user's note]
 
 ## History
