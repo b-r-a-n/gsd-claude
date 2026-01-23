@@ -75,6 +75,48 @@ get_projects_for_repo() {
   done
 }
 
+# Check project selection ambiguity for current repo
+# Returns on stdout: "none", "single", "selected", or "ambiguous"
+# When "ambiguous", outputs project list to stderr (one per line)
+check_project_ambiguity() {
+  local repo_state_dir
+  repo_state_dir=$(get_repo_state_dir)
+
+  # Get projects for this repo
+  local repo_projects
+  repo_projects=$(get_projects_for_repo)
+  local project_count
+  project_count=$(echo "$repo_projects" | grep -c . 2>/dev/null || echo 0)
+
+  # No projects for this repo
+  if [ "$project_count" -eq 0 ] || [ -z "$repo_projects" ]; then
+    echo "none"
+    return 0
+  fi
+
+  # Check if there's an explicit selection (repo-local current-project)
+  if [ -f "$repo_state_dir/current-project" ]; then
+    local selected
+    selected=$(cat "$repo_state_dir/current-project" | tr -d ' \n')
+    if [ -n "$selected" ]; then
+      echo "selected"
+      return 0
+    fi
+  fi
+
+  # Single project - no ambiguity
+  if [ "$project_count" -eq 1 ]; then
+    echo "single"
+    return 0
+  fi
+
+  # Multiple projects, no explicit selection - ambiguous
+  # Output project list to stderr for caller to use
+  echo "$repo_projects" >&2
+  echo "ambiguous"
+  return 0
+}
+
 # Compute project ID from repo root and project name
 compute_project_id() {
   local project_name="$1"
@@ -83,7 +125,7 @@ compute_project_id() {
   echo -n "${repo_root}:${project_name}" | shasum -a 1 | cut -c1-12
 }
 
-# Get active project (priority: env var > repo-local > global (if repo matches) > last-active > commit history)
+# Get active project (priority: env var > repo-local > auto-select single > global (if repo matches) > last-active > commit history)
 get_active_project() {
   # 1. Environment variable (highest priority - explicit override, no repo validation)
   if [ -n "$GSD_PROJECT" ]; then
@@ -103,7 +145,21 @@ get_active_project() {
     fi
   fi
 
-  # 3. Global .current-project file (only if project matches current repo - backward compat)
+  # 3. Auto-select if exactly one project for this repo (and persist the choice)
+  local repo_projects
+  repo_projects=$(get_projects_for_repo)
+  local project_count
+  project_count=$(echo "$repo_projects" | grep -c . 2>/dev/null || echo 0)
+  if [ "$project_count" -eq 1 ] && [ -n "$repo_projects" ]; then
+    local single_project
+    single_project=$(echo "$repo_projects" | head -1)
+    # Persist the auto-selection so future calls see it as "selected"
+    gsd_atomic_write "$repo_state_dir/current-project" "$single_project" 2>/dev/null
+    echo "$single_project"
+    return 0
+  fi
+
+  # 4. Global .current-project file (only if project matches current repo - backward compat)
   if [ -f "$PLANNING_DIR/.current-project" ]; then
     local project
     project=$(cat "$PLANNING_DIR/.current-project" | tr -d ' \n')
@@ -113,9 +169,7 @@ get_active_project() {
     fi
   fi
 
-  # 4. Most recent last-active (only for repo-matching projects)
-  local repo_projects
-  repo_projects=$(get_projects_for_repo)
+  # 5. Most recent last-active (only for repo-matching projects)
   if [ -n "$repo_projects" ]; then
     local latest_time=0
     local latest_project=""
@@ -136,7 +190,7 @@ get_active_project() {
     fi
   fi
 
-  # 5. Most recent commit with [project] tag
+  # 6. Most recent commit with [project] tag
   local from_commit
   from_commit=$(git log --oneline -50 2>/dev/null | grep -o '\[[^]]*\]' | head -1 | tr -d '[]')
   if [ -n "$from_commit" ]; then
