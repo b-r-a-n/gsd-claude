@@ -217,7 +217,14 @@ When implementing tasks that need background work:
 
 ### Check Current Background Work
 ```bash
+# List all tracked items with details
 ~/.claude/commands/gsd/scripts/background.sh list_background
+
+# Get count of tracked items
+~/.claude/commands/gsd/scripts/background.sh count_background
+
+# Check if any background work exists (returns 0 if yes, 1 if no)
+~/.claude/commands/gsd/scripts/background.sh has_background
 ```
 
 ### Clear Stale Entries
@@ -232,9 +239,22 @@ When implementing tasks that need background work:
 ### Find Orphaned Processes
 Use `/tasks` command in Claude Code to see all running background work.
 
+### Clean Up Old Session Files
+```bash
+# List stale session files (older than N days, default 7)
+~/.claude/commands/gsd/scripts/session-gc.sh list_stale_sessions 7
+
+# Clean up stale sessions
+~/.claude/commands/gsd/scripts/session-gc.sh clean_stale_sessions 7
+
+# List all sessions for a project
+~/.claude/commands/gsd/scripts/session-gc.sh list_sessions [project]
+```
+
 ## Related Tools
 
 - `background.sh` - GSD tracking script (`~/.claude/commands/gsd/scripts/background.sh`)
+- `session-gc.sh` - Session garbage collection (`~/.claude/commands/gsd/scripts/session-gc.sh`)
 - `TaskOutput` - Claude Code tool for polling background work
 - `KillShell` - Claude Code tool for terminating background shells
 - `/tasks` - Claude Code command to list all background work
