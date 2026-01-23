@@ -248,20 +248,41 @@ description: |
   echo "$project_id"
 }
 
-# List all projects
+# List projects
+# Usage: list_projects [--repo]
+#   --repo: Only show projects for current repository
 list_projects() {
+  local filter_repo=false
+  if [ "$1" = "--repo" ]; then
+    filter_repo=true
+  fi
+
   ensure_planning_dirs
+
+  # Get active project (now repo-scoped)
   local current
   current=$(get_active_project 2>/dev/null || echo "")
 
-  for dir in "$PROJECTS_DIR"/*/; do
-    [ -d "$dir" ] || continue
-    local name
-    name=$(basename "$dir")
+  # Get list of projects to show
+  local projects
+  if [ "$filter_repo" = true ]; then
+    projects=$(get_projects_for_repo)
+  else
+    # All projects
+    projects=""
+    for dir in "$PROJECTS_DIR"/*/; do
+      [ -d "$dir" ] || continue
+      projects="$projects $(basename "$dir")"
+    done
+  fi
+
+  # Display each project
+  for name in $projects; do
+    [ -z "$name" ] && continue
     local status="  "
     [ "$name" = "$current" ] && status="* "
     local repo
-    repo=$(grep '^repository:' "$dir/project.yml" 2>/dev/null | cut -d' ' -f2-)
+    repo=$(grep '^repository:' "$PROJECTS_DIR/$name/project.yml" 2>/dev/null | cut -d' ' -f2-)
     echo "${status}${name} (${repo})"
   done
 }
