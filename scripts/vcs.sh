@@ -39,7 +39,7 @@ if [ $# -eq 0 ]; then
   echo "  vcs-stage <file>  Stage file for commit"
   echo "  vcs-unstage <file> Unstage file"
   echo "  vcs-commit <msg>  Create commit"
-  echo "  vcs-atomic-commit <type> <phase> <task> <desc>  Formatted commit"
+  echo "  vcs-atomic-commit <type> <phase> <task> <desc> [project]  Formatted commit"
   echo "  vcs-log [n]       Show last n commits"
   echo "  vcs-diff [file]   Show uncommitted changes"
   echo "  vcs-diff-staged   Show staged changes"

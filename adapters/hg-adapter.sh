@@ -35,11 +35,12 @@ vcs-commit() {
 }
 
 vcs-atomic-commit() {
-  local type="$1" phase="$2" task="$3" desc="$4"
+  local type="$1" phase="$2" task="$3" desc="$4" project="${5:-}"
 
-  # Get active project
-  local project
-  project=$("$GSD_DIR/scripts/project.sh" get_active_project 2>/dev/null)
+  # Use provided project or fall back to get_active_project (FR-008)
+  if [ -z "$project" ]; then
+    project=$("$GSD_DIR/scripts/project.sh" get_active_project 2>/dev/null)
+  fi
 
   if [ -n "$project" ]; then
     hg commit -m "[$project] ${type}(${phase}-${task}): ${desc}"
