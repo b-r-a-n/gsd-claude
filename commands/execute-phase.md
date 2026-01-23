@@ -188,6 +188,68 @@ Continue? [Y/n]
 
 If user confirms, proceed to next wave. If not, update state for resume later.
 
+### Step 5.5: Cleanup Background Work
+
+Before proceeding to the next wave or completing the phase, check for any tracked background work.
+
+#### 5.5.1 Check for Tracked Work
+
+```bash
+# List any tracked background work
+~/.claude/commands/gsd/scripts/background.sh list_background
+```
+
+If no tracked work exists, skip to the next step.
+
+#### 5.5.2 Poll Each Item
+
+For each tracked item, check its status:
+
+```
+Use TaskOutput tool:
+  task_id: "<id from tracked item>"
+  block: false
+  timeout: 1000
+```
+
+#### 5.5.3 Handle Still-Running Work
+
+If any items are still running, prompt the user:
+
+```
+⚠ Background work still running:
+  - shell:abc123 - cargo build (spawned 10:30:00)
+  - task:xyz789 - log monitor (spawned 10:30:05)
+
+Options:
+1. Wait for completion (recommended)
+2. Kill background processes and continue
+3. Leave running and continue (not recommended - may cause leaks)
+
+Choice [1]:
+```
+
+**Option 1 - Wait**: Use `TaskOutput` with `block: true` for each item until complete.
+
+**Option 2 - Kill**: For shell items, use `KillShell` tool. Task agents cannot be killed but will eventually timeout.
+
+**Option 3 - Continue**: Warn that this may cause resource leaks.
+
+#### 5.5.4 Clear Tracking
+
+After all background work is handled:
+
+```bash
+~/.claude/commands/gsd/scripts/background.sh clear_all_background
+```
+
+Log the cleanup in PROGRESS.md:
+```markdown
+[YYYY-MM-DD HH:MM] Background work cleanup: [N] items cleared
+```
+
+See `~/.claude/commands/gsd/docs/background-patterns.md` for detailed patterns.
+
 ### Step 6: Phase Completion
 
 When all waves complete:
