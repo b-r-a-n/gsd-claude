@@ -332,6 +332,75 @@ gsd_locked_update() {
   return $result
 }
 
+# =============================================================================
+# Safe File System Operations
+# =============================================================================
+
+# Safely touch a file with lock to ensure deterministic ordering
+# Usage: gsd_safe_touch <file>
+# Returns: 0 on success, 1 on error
+gsd_safe_touch() {
+  local file="$1"
+
+  if [ -z "$file" ]; then
+    echo "Error: gsd_safe_touch requires a file path" >&2
+    return 1
+  fi
+
+  # Ensure parent directory exists
+  local dir
+  dir=$(dirname "$file")
+  if [ ! -d "$dir" ]; then
+    mkdir -p "$dir" || return 1
+  fi
+
+  # Use a brief lock to ensure deterministic ordering when multiple processes
+  # try to touch the same file simultaneously
+  local lockfile="${file}.touch"
+  if ! gsd_lock_acquire "$lockfile" 5; then
+    echo "Error: Could not acquire touch lock" >&2
+    return 1
+  fi
+
+  # Touch the file
+  touch "$file"
+  local result=$?
+
+  gsd_lock_release "$lockfile"
+  return $result
+}
+
+# Safely create a directory, handling concurrent creation gracefully
+# Usage: gsd_safe_mkdir <directory>
+# Returns: 0 if directory exists (created or already existed), 1 on error
+gsd_safe_mkdir() {
+  local dir="$1"
+
+  if [ -z "$dir" ]; then
+    echo "Error: gsd_safe_mkdir requires a directory path" >&2
+    return 1
+  fi
+
+  # If directory already exists, success
+  if [ -d "$dir" ]; then
+    return 0
+  fi
+
+  # Try to create directory with parents
+  if mkdir -p "$dir" 2>/dev/null; then
+    return 0
+  fi
+
+  # mkdir failed - check if another process created it
+  if [ -d "$dir" ]; then
+    return 0
+  fi
+
+  # Actual error
+  echo "Error: Could not create directory $dir" >&2
+  return 1
+}
+
 # Execute the function if called directly
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
   "$@"
