@@ -56,19 +56,27 @@ get_active_project() {
   return 1
 }
 
-# Set active project
+# Set active project (with atomic existence check via hold pattern)
 set_active_project() {
   local project="$1"
+  local lock_file
   ensure_planning_dirs
 
-  if [ ! -d "$PROJECTS_DIR/$project" ]; then
+  # Use hold pattern to atomically check existence and prevent deletion
+  lock_file=$(gsd_project_hold "$project" 5)
+  if [ $? -ne 0 ]; then
     echo "Error: Project '$project' not registered" >&2
     echo "Run: gsd-new-project $project" >&2
     return 1
   fi
 
+  # Project exists and is locked - safe to update files
   gsd_atomic_write "$PLANNING_DIR/.current-project" "$project"
   gsd_safe_touch "$PROJECTS_DIR/$project/last-active"
+
+  # Release the hold
+  gsd_project_release "$lock_file"
+
   echo "Active project: $project"
 }
 
