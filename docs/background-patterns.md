@@ -25,7 +25,13 @@ Both return an ID that must be tracked for later cleanup.
 
 ## Pattern 1: Spawn and Track
 
-Always track spawned background work using the `background.sh` script.
+**CRITICAL**: Always track spawned background work **immediately** after spawning using the `background.sh` script. This is a **required 2-step process** - GSD cannot automatically detect untracked background work.
+
+**Why this matters:**
+- STATE.md's "Active Background Work" section only shows explicitly tracked items
+- verify-work and execute-phase cleanup only operate on tracked items
+- Untracked processes become orphaned and may cause resource leaks
+- The `/tasks` command shows all running work, but GSD commands only check STATE.md
 
 ### Background Shell (Bash)
 

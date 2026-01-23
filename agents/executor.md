@@ -102,7 +102,9 @@ Always use the VCS abstraction layer:
 
 ## Background Work
 
-When tasks require long-running operations (builds, tests, monitoring), follow these guidelines:
+When tasks require long-running operations (builds, tests, monitoring), follow these guidelines.
+
+**CRITICAL**: GSD cannot automatically detect background work spawned with `run_in_background: true`. You **must** explicitly track it immediately after spawning, or it becomes invisible to GSD's cleanup and verification processes.
 
 ### DO:
 - **Prefer foreground** for operations under 30 seconds

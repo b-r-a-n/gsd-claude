@@ -107,13 +107,31 @@ Report results:
 
 Before generating the verification report, ensure all background work is complete.
 
-#### 3.5.1 Check for Tracked Work
+#### 3.5.1 Check for Untracked Background Work
+
+**IMPORTANT**: GSD tracking only knows about background work that was explicitly registered.
+Use `/tasks` to check for any untracked running processes that may have been spawned during execution.
+
+If untracked background work is found:
+```
+⚠ Warning: Untracked background work detected
+
+The following processes were found via /tasks but are not in STATE.md tracking:
+- [list untracked items]
+
+These may have been spawned without proper tracking. Consider:
+1. Waiting for them to complete before verification
+2. Killing orphaned processes if no longer needed
+3. Documenting any known issues in the verification report
+```
+
+#### 3.5.2 Check for Tracked Work
 
 ```bash
 ~/.claude/commands/gsd/scripts/background.sh list_background
 ```
 
-#### 3.5.2 Poll and Wait for Completion
+#### 3.5.3 Poll and Wait for Completion
 
 For any tracked items:
 
@@ -135,14 +153,14 @@ Waiting for completion before generating verification report...
 
 Use `TaskOutput` with `block: true` to wait, or `KillShell` for shell processes if they appear stuck.
 
-#### 3.5.3 Record Status for Report
+#### 3.5.4 Record Status for Report
 
 Note the final status of all background work for inclusion in the verification report:
 - Items that completed successfully
 - Items that failed or were killed
 - Items that timed out
 
-#### 3.5.4 Clear Tracking
+#### 3.5.5 Clear Tracking
 
 After verification:
 
