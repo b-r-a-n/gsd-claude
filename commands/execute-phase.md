@@ -93,13 +93,32 @@ For each task, follow the executor agent guidelines:
 - Verify no regressions
 
 #### 3.5 Commit
-Use the VCS abstraction:
+Use the VCS abstraction with explicit verification:
 
 ```bash
-# Stage changes
-~/.claude/commands/gsd/scripts/vcs.sh vcs-stage <file>
+# 1. Check what changed
+~/.claude/commands/gsd/scripts/vcs.sh vcs-status
+```
 
-# Commit with standard format
+**Compare against task specification:**
+- The task in PLAN.md lists expected files under "Files:" or "Files to modify:"
+- Stage files that match the task specification
+- New files should only be staged if listed in the task spec
+
+**Handle discrepancies:**
+- **Expected file not modified**: May indicate incomplete implementation - verify before proceeding
+- **Unexpected file modified**: Could be scope creep or unintended side effect - investigate before staging
+- **Untracked files not in spec**: Do not stage - either add to .gitignore or note for future task
+
+```bash
+# 2. Stage each file listed in task spec
+~/.claude/commands/gsd/scripts/vcs.sh vcs-stage <file1>
+~/.claude/commands/gsd/scripts/vcs.sh vcs-stage <file2>
+
+# 3. Verify staged changes match expectations
+~/.claude/commands/gsd/scripts/vcs.sh vcs-diff-staged
+
+# 4. Commit with standard format
 ~/.claude/commands/gsd/scripts/vcs.sh vcs-atomic-commit <type> <phase> <task> "<description>"
 ```
 

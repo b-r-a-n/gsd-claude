@@ -64,16 +64,30 @@ Implement the changes:
 
 ### Step 5: Commit
 
-Use the VCS abstraction to commit:
+Use the VCS abstraction with explicit verification:
 
 ```bash
-# Check what changed
+# 1. Check what changed
 ~/.claude/commands/gsd/scripts/vcs.sh vcs-status
+```
 
-# Stage files
-~/.claude/commands/gsd/scripts/vcs.sh vcs-stage <file>
+**Compare against your plan from Step 3:**
+- Only stage files you identified in your mental plan
+- New files should only be staged if they were part of the intended change
 
-# Commit with descriptive message
+**Handle discrepancies:**
+- **Unexpected file modified**: Investigate before staging - could be unintended side effect
+- **Untracked files you didn't create**: Do not stage - leave for user to handle
+
+```bash
+# 2. Stage each file from your plan
+~/.claude/commands/gsd/scripts/vcs.sh vcs-stage <file1>
+~/.claude/commands/gsd/scripts/vcs.sh vcs-stage <file2>
+
+# 3. Verify staged changes match expectations
+~/.claude/commands/gsd/scripts/vcs.sh vcs-diff-staged
+
+# 4. Commit with descriptive message
 ~/.claude/commands/gsd/scripts/vcs.sh vcs-commit "<type>: <description>"
 ```
 
