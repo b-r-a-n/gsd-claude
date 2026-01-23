@@ -165,6 +165,59 @@ project_exists() {
   [ -d "$PROJECTS_DIR/$project" ]
 }
 
+# Hold a project lock to prevent deletion during use (FR-007)
+# Usage: gsd_project_hold <project_name> [timeout_seconds]
+# Returns: 0 if project exists and lock acquired, 1 otherwise
+# Outputs: Lock file path on stdout (for use with gsd_project_release)
+# Note: Caller MUST call gsd_project_release when done
+gsd_project_hold() {
+  local project="$1"
+  local timeout="${2:-30}"
+  local project_dir="$PROJECTS_DIR/$project"
+  local lock_file="$project_dir/.project-lock"
+
+  if [ -z "$project" ]; then
+    echo "Error: gsd_project_hold requires a project name" >&2
+    return 1
+  fi
+
+  # First check if project exists (quick check before trying to lock)
+  if [ ! -d "$project_dir" ]; then
+    return 1
+  fi
+
+  # Acquire lock on the project
+  if ! gsd_lock_acquire "$lock_file" "$timeout"; then
+    echo "Error: Could not acquire project lock" >&2
+    return 1
+  fi
+
+  # Re-check existence while holding lock (atomic check)
+  if [ ! -d "$project_dir" ]; then
+    gsd_lock_release "$lock_file"
+    return 1
+  fi
+
+  # Output lock file path for caller to use with gsd_project_release
+  echo "$lock_file"
+  return 0
+}
+
+# Release a project lock acquired by gsd_project_hold
+# Usage: gsd_project_release <lock_file>
+# Returns: 0 on success
+gsd_project_release() {
+  local lock_file="$1"
+
+  if [ -z "$lock_file" ]; then
+    echo "Error: gsd_project_release requires a lock file path" >&2
+    return 1
+  fi
+
+  gsd_lock_release "$lock_file"
+  return 0
+}
+
 # Get project planning directory
 get_project_planning_dir() {
   local project="$1"
