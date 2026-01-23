@@ -49,14 +49,13 @@ echo ""
 
 PREREQ_FAILED=0
 
-# Check Bash version
+# Check Bash version (warn but don't fail - scripts work with 3.2+)
 BASH_VERSION_NUM="${BASH_VERSION%%[^0-9.]*}"
 BASH_MAJOR="${BASH_VERSION_NUM%%.*}"
 if [[ "$BASH_MAJOR" -ge 4 ]]; then
-    print_status "ok" "Bash version $BASH_VERSION_NUM (4.0+ required)"
+    print_status "ok" "Bash version $BASH_VERSION_NUM"
 else
-    print_status "fail" "Bash version $BASH_VERSION_NUM (4.0+ required)"
-    PREREQ_FAILED=1
+    print_status "warn" "Bash version $BASH_VERSION_NUM (4.0+ recommended, 3.2 works)"
 fi
 
 # Check for Git or Mercurial

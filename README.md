@@ -33,7 +33,7 @@ cd ~/.claude/commands/gsd
 ## Prerequisites
 
 - **Claude Code** - Anthropic's CLI for Claude
-- **Bash 4.0+** - Required for associative arrays and modern features
+- **Bash 3.2+** - Works with macOS default bash (4.0+ recommended)
 - **Git or Mercurial** - At least one version control system
 - **shasum** - For checksum verification (usually pre-installed)
 
