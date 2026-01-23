@@ -83,29 +83,60 @@ compute_project_id() {
   echo -n "${repo_root}:${project_name}" | shasum -a 1 | cut -c1-12
 }
 
-# Get active project (priority: env var > .current-project > last-active > commit history)
+# Get active project (priority: env var > repo-local > global (if repo matches) > last-active > commit history)
 get_active_project() {
-  # 1. Environment variable
+  # 1. Environment variable (highest priority - explicit override, no repo validation)
   if [ -n "$GSD_PROJECT" ]; then
     echo "$GSD_PROJECT"
     return 0
   fi
 
-  # 2. .current-project file
+  # 2. Repo-local current-project file
+  local repo_state_dir
+  repo_state_dir=$(get_repo_state_dir)
+  if [ -f "$repo_state_dir/current-project" ]; then
+    local project
+    project=$(cat "$repo_state_dir/current-project" | tr -d ' \n')
+    if [ -n "$project" ]; then
+      echo "$project"
+      return 0
+    fi
+  fi
+
+  # 3. Global .current-project file (only if project matches current repo - backward compat)
   if [ -f "$PLANNING_DIR/.current-project" ]; then
-    cat "$PLANNING_DIR/.current-project" | tr -d ' \n'
-    return 0
+    local project
+    project=$(cat "$PLANNING_DIR/.current-project" | tr -d ' \n')
+    if [ -n "$project" ] && validate_project_repo "$project"; then
+      echo "$project"
+      return 0
+    fi
   fi
 
-  # 3. Most recent last-active
-  local latest
-  latest=$(ls -t "$PROJECTS_DIR"/*/last-active 2>/dev/null | head -1)
-  if [ -n "$latest" ]; then
-    basename "$(dirname "$latest")"
-    return 0
+  # 4. Most recent last-active (only for repo-matching projects)
+  local repo_projects
+  repo_projects=$(get_projects_for_repo)
+  if [ -n "$repo_projects" ]; then
+    local latest_time=0
+    local latest_project=""
+    for project in $repo_projects; do
+      local last_active="$PROJECTS_DIR/$project/last-active"
+      if [ -f "$last_active" ]; then
+        local mtime
+        mtime=$(stat -f %m "$last_active" 2>/dev/null || stat -c %Y "$last_active" 2>/dev/null || echo 0)
+        if [ "$mtime" -gt "$latest_time" ]; then
+          latest_time=$mtime
+          latest_project=$project
+        fi
+      fi
+    done
+    if [ -n "$latest_project" ]; then
+      echo "$latest_project"
+      return 0
+    fi
   fi
 
-  # 4. Most recent commit with [project] tag
+  # 5. Most recent commit with [project] tag
   local from_commit
   from_commit=$(git log --oneline -50 2>/dev/null | grep -o '\[[^]]*\]' | head -1 | tr -d '[]')
   if [ -n "$from_commit" ]; then
@@ -117,6 +148,7 @@ get_active_project() {
 }
 
 # Set active project (with atomic existence check via hold pattern)
+# Writes to repo-local state file for session isolation
 set_active_project() {
   local project="$1"
   local lock_file
@@ -130,8 +162,13 @@ set_active_project() {
     return 1
   fi
 
+  # Get repo-local state directory
+  local repo_state_dir
+  repo_state_dir=$(get_repo_state_dir)
+
   # Project exists and is locked - safe to update files
-  gsd_atomic_write "$PLANNING_DIR/.current-project" "$project"
+  # Write to repo-local state (not global) for session isolation
+  gsd_atomic_write "$repo_state_dir/current-project" "$project"
   gsd_safe_touch "$PROJECTS_DIR/$project/last-active"
 
   # Release the hold
@@ -200,8 +237,10 @@ description: |
   # Create last-active marker
   gsd_safe_touch "$project_dir/last-active"
 
-  # Set as current project
-  gsd_atomic_write "$PLANNING_DIR/.current-project" "$project_name"
+  # Set as current project (repo-local, not global)
+  local repo_state_dir
+  repo_state_dir=$(get_repo_state_dir)
+  gsd_atomic_write "$repo_state_dir/current-project" "$project_name"
 
   # Release lock
   gsd_lock_release "$lock_file"
