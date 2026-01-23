@@ -103,6 +103,55 @@ Report results:
 - Passed / Failed / Skipped
 - Coverage (if available)
 
+### Step 3.5: Check Background Work Status
+
+Before generating the verification report, ensure all background work is complete.
+
+#### 3.5.1 Check for Tracked Work
+
+```bash
+~/.claude/commands/gsd/scripts/background.sh list_background
+```
+
+#### 3.5.2 Poll and Wait for Completion
+
+For any tracked items:
+
+```
+Use TaskOutput tool:
+  task_id: "<id>"
+  block: false
+  timeout: 1000
+```
+
+If items are still running, wait for completion before proceeding:
+
+```
+⚠ Background work still running:
+  - [list items]
+
+Waiting for completion before generating verification report...
+```
+
+Use `TaskOutput` with `block: true` to wait, or `KillShell` for shell processes if they appear stuck.
+
+#### 3.5.3 Record Status for Report
+
+Note the final status of all background work for inclusion in the verification report:
+- Items that completed successfully
+- Items that failed or were killed
+- Items that timed out
+
+#### 3.5.4 Clear Tracking
+
+After verification:
+
+```bash
+~/.claude/commands/gsd/scripts/background.sh clear_all_background
+```
+
+See `~/.claude/commands/gsd/docs/background-patterns.md` for detailed patterns.
+
 ### Step 4: Code Review
 
 Review implementation for:
@@ -158,6 +207,15 @@ Create `$PLANNING_DIR/phases/phase-XX/VERIFICATION.md`:
 
 ### Failed Tests
 [Details of any failures, or "None"]
+
+## Background Work Status
+
+| Type | ID | Description | Status |
+|------|-----|-------------|--------|
+| shell | abc123 | cargo build | ✅ Completed |
+| task | xyz789 | log monitor | ✅ Completed |
+
+**Summary**: [N] background items tracked, [N] completed successfully, [N] failed/killed
 
 ## Code Review Findings
 
