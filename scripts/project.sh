@@ -72,35 +72,71 @@ set_active_project() {
   echo "Active project: $project"
 }
 
-# Register a new project
+# Register a new project (with collision detection)
 register_project() {
   local project_name="$1"
   local description="${2:-}"
+  local lock_file="$PROJECTS_DIR/.registration-lock"
+  local project_dir="$PROJECTS_DIR/$project_name"
 
   ensure_planning_dirs
 
+  # Acquire registration lock to prevent concurrent registrations
+  if ! gsd_lock_acquire "$lock_file" 30; then
+    echo "Error: Could not acquire registration lock" >&2
+    return 1
+  fi
+
+  # Check if project already exists
+  if [ -d "$project_dir" ]; then
+    gsd_lock_release "$lock_file"
+    echo "Error: Project '$project_name' already exists" >&2
+    echo "Use: /gsd-set-project $project_name" >&2
+    return 1
+  fi
+
+  # Compute project metadata
   local project_id
   project_id=$(compute_project_id "$project_name")
   local repo_root
   repo_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
-  local project_dir="$PROJECTS_DIR/$project_name"
+  local created_at
+  created_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-  mkdir -p "$project_dir"
+  # Create project directory (will fail if somehow created between check and now)
+  if ! mkdir "$project_dir" 2>/dev/null; then
+    gsd_lock_release "$lock_file"
+    echo "Error: Failed to create project directory" >&2
+    return 1
+  fi
 
-  # Create project.yml
-  cat > "$project_dir/project.yml" << EOF
-name: $project_name
+  # Build project.yml content
+  local yaml_content="name: $project_name
 id: $project_id
 repository: $repo_root
 status: active
-created: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-last_accessed: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+created: $created_at
+last_accessed: $created_at
 description: |
-  $description
-EOF
+  $description"
 
+  # Create project.yml atomically
+  if ! gsd_atomic_write "$project_dir/project.yml" "$yaml_content"; then
+    # Cleanup on failure
+    rm -rf "$project_dir" 2>/dev/null
+    gsd_lock_release "$lock_file"
+    echo "Error: Failed to create project.yml" >&2
+    return 1
+  fi
+
+  # Create last-active marker
   touch "$project_dir/last-active"
+
+  # Set as current project
   gsd_atomic_write "$PLANNING_DIR/.current-project" "$project_name"
+
+  # Release lock
+  gsd_lock_release "$lock_file"
 
   echo "$project_id"
 }
