@@ -6,7 +6,13 @@ args: "<task_description>"
 
 # Quick Task Execution
 
-You are executing a single task quickly without the full GSD planning workflow. This is for small, well-defined tasks that don't need multi-phase planning.
+You are coordinating a quick task. Your role is to:
+1. Understand the task
+2. Delegate execution to a subagent
+3. Report the results
+
+**CRITICAL**: Do NOT read files, search code, or make changes yourself.
+Delegate ALL execution to the subagent to preserve your context.
 
 ## Input
 
@@ -32,93 +38,159 @@ Use full GSD workflow (`/gsd:commands:new-project` → `/gsd:commands:plan-phase
 
 ### Step 1: Understand the Task
 
-Parse the task description to understand:
-- What needs to be done
-- What files are likely involved
-- What the acceptance criteria are
+Parse the task description to understand what's being asked.
+If the task is unclear, ask clarifying questions using AskUserQuestion.
 
-If the task is unclear, ask clarifying questions.
+**Do NOT:**
+- Read any files
+- Search the codebase
+- Start implementing
 
-### Step 2: Research (if needed)
+### Step 2: Delegate to Subagent
 
-If you need to understand the codebase:
-1. Search for relevant files
-2. Read related code
-3. Identify patterns to follow
+Use the Task tool to spawn an executor subagent:
 
-### Step 3: Plan Briefly
-
-Create a mental plan:
-- What files to modify
-- What changes to make
-- How to verify
-
-For simple tasks, this can be just a few bullet points. Don't over-plan.
-
-### Step 4: Execute
-
-Implement the changes:
-1. Read the relevant files
-2. Make the changes
-3. Verify the changes work
-
-### Step 5: Commit
-
-Use the VCS abstraction with explicit verification:
-
-```bash
-# 1. Check what changed
-~/.claude/commands/gsd/scripts/vcs.sh vcs-status
+```
+Task tool parameters:
+  description: "Execute: <brief 3-5 word task summary>"
+  subagent_type: "general-purpose"
+  prompt: <use the subagent prompt template below, inserting the task description>
 ```
 
-**Compare against your plan from Step 3:**
-- Only stage files you identified in your mental plan
-- New files should only be staged if they were part of the intended change
+#### Subagent Prompt Template
 
-**Handle discrepancies:**
-- **Unexpected file modified**: Investigate before staging - could be unintended side effect
-- **Untracked files you didn't create**: Do not stage - leave for user to handle
+Pass this prompt to the Task tool, replacing `<TASK_DESCRIPTION>` with the actual task from $ARGUMENTS:
 
-```bash
-# 2. Stage each file from your plan
-~/.claude/commands/gsd/scripts/vcs.sh vcs-stage <file1>
-~/.claude/commands/gsd/scripts/vcs.sh vcs-stage <file2>
+```
+# Quick Task Executor
 
-# 3. Verify staged changes match expectations
+You are executing a quick task autonomously. Complete it fully and return a summary.
+
+## Task
+<TASK_DESCRIPTION>
+
+## Execution Steps
+
+### 1. Research (if needed)
+- Search for relevant files using Glob
+- Read related code to understand patterns
+- Keep research focused on what's needed
+
+### 2. Plan
+- Identify files to modify
+- Plan the changes
+- Define acceptance criteria
+
+### 3. Implement
+- Read the files you need to modify
+- Make the changes using Edit or Write
+- Keep changes minimal and focused
+
+### 4. Verify
+- Ensure changes work as expected
+- Check acceptance criteria
+
+### 5. Commit
+Use these VCS commands:
+
+# Check what changed
+~/.claude/commands/gsd/scripts/vcs.sh vcs-status
+
+# Stage files (only files you intentionally changed)
+~/.claude/commands/gsd/scripts/vcs.sh vcs-stage <file>
+
+# Verify staged changes
 ~/.claude/commands/gsd/scripts/vcs.sh vcs-diff-staged
 
-# 4. Commit with descriptive message
+# Commit
 ~/.claude/commands/gsd/scripts/vcs.sh vcs-commit "<type>: <description>"
+
+Commit types: feat, fix, refactor, docs, test, chore
+
+## Return Format
+
+When done, return ONLY this summary (the orchestrator will display it):
+
+STATUS: [success|error|too-complex]
+
+FILES_CHANGED:
+- <file1>: <what changed>
+- <file2>: <what changed>
+
+COMMIT: <hash> - <message>
+
+NOTES: <any relevant notes or follow-up suggestions>
+
+If the task is too complex for quick execution, return:
+
+STATUS: too-complex
+
+REASON: <why this needs full GSD workflow>
+
+SUGGESTION: Use /gsd:commands:new-project to plan this properly
+
+## Guidelines
+- Keep it simple - this is for quick tasks
+- Follow existing code patterns
+- Don't over-engineer
+- If uncertain, make reasonable assumptions rather than blocking
 ```
 
-Commit message format for quick tasks:
-```
-<type>: <description>
+### Step 3: Report Results
 
-[optional body with more detail]
-```
+When the subagent returns, display its summary to the user.
 
-Types:
-- `feat` - New feature
-- `fix` - Bug fix
-- `refactor` - Refactoring
-- `docs` - Documentation
-- `test` - Tests
-- `chore` - Maintenance
-
-### Step 6: Report
-
+**For successful completion:**
 ```
 ✓ Task Complete
 
 Changes:
-  [file1]: [what changed]
-  [file2]: [what changed]
+  [from FILES_CHANGED in subagent summary]
 
-Commit: [hash] - [message]
+Commit: [from COMMIT in subagent summary]
 
-[Any notes or follow-up suggestions]
+[NOTES from subagent summary, if any]
 ```
+
+**For errors:** See Error Handling section below.
+
+## Error Handling
+
+### STATUS: error
+
+If the subagent returns an error:
+
+```
+⚠ Task Failed
+
+Error: [from subagent summary]
+
+Options:
+1. Retry with more context
+2. Use full GSD workflow for better planning
+3. Investigate manually
+```
+
+Ask the user which option they prefer.
+
+### STATUS: too-complex
+
+If the subagent determines the task is too complex:
+
+```
+⚠ Task Too Complex for Quick Execution
+
+Reason: [from REASON in subagent summary]
+
+Recommendation: [from SUGGESTION in subagent summary]
+
+Would you like to:
+1. Start a new GSD project with /gsd:commands:new-project
+2. Try anyway with quick execution (may fail)
+3. Break down the task into smaller pieces
+```
+
+Ask the user which option they prefer.
 
 ## Examples
 
@@ -126,31 +198,55 @@ Commit: [hash] - [message]
 ```
 User: /gsd:commands:quick fix the null pointer in user.ts line 42
 
-Claude:
-1. Reads user.ts
-2. Identifies the null pointer issue
-3. Adds null check
-4. Commits: "fix: add null check in user.ts"
+Orchestrator:
+1. Understands: fix null pointer bug in user.ts
+2. Delegates to subagent with Task tool
+3. Subagent returns:
+   STATUS: success
+   FILES_CHANGED:
+   - user.ts: added null check on line 42
+   COMMIT: abc123 - fix: add null check in user.ts
+   NOTES: Consider adding similar checks elsewhere
+4. Reports to user:
+   ✓ Task Complete
+   Changes: user.ts - added null check on line 42
+   Commit: abc123 - fix: add null check in user.ts
 ```
 
 ### Example 2: Add Function
 ```
 User: /gsd:commands:quick add a formatDate utility function to utils.ts
 
-Claude:
-1. Reads utils.ts to understand patterns
-2. Adds formatDate function following existing style
-3. Commits: "feat: add formatDate utility function"
+Orchestrator:
+1. Understands: add formatDate function to utils.ts
+2. Delegates to subagent with Task tool
+3. Subagent returns:
+   STATUS: success
+   FILES_CHANGED:
+   - utils.ts: added formatDate(date, format) function
+   COMMIT: def456 - feat: add formatDate utility function
+   NOTES: none
+4. Reports to user:
+   ✓ Task Complete
+   Changes: utils.ts - added formatDate(date, format) function
+   Commit: def456 - feat: add formatDate utility function
 ```
 
-### Example 3: Documentation
+### Example 3: Too Complex Task
 ```
-User: /gsd:commands:quick update README with new installation steps
+User: /gsd:commands:quick rewrite the entire authentication system
 
-Claude:
-1. Reads README.md
-2. Updates installation section
-3. Commits: "docs: update installation steps in README"
+Orchestrator:
+1. Understands: rewrite authentication system (large scope)
+2. Delegates to subagent with Task tool
+3. Subagent returns:
+   STATUS: too-complex
+   REASON: Authentication rewrite affects 15+ files and requires architectural decisions
+   SUGGESTION: Use /gsd:commands:new-project to plan this properly
+4. Reports to user:
+   ⚠ Task Too Complex for Quick Execution
+   Reason: Authentication rewrite affects 15+ files...
+   Recommendation: Use /gsd:commands:new-project
 ```
 
 ## Guidelines
@@ -160,4 +256,5 @@ Claude:
 - Follow existing code patterns
 - Commit with clear messages
 - If the task is too big, suggest using full GSD workflow
-- If uncertain about scope, ask before implementing
+- If uncertain about scope, ask before delegating
+- **Remember: Do NOT read files yourself - always delegate**
