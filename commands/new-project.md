@@ -40,7 +40,7 @@ Please either:
   1. Navigate to a repository: cd /path/to/your/repo
   2. Initialize a new repository: git init
 
-Then run /gsd-new-project again.
+Then run /gsd:commands:new-project again.
 ```
 
 Do NOT proceed without a confirmed repository.
@@ -220,13 +220,13 @@ This project is now the active project. All commits will be tagged with:
 
 Next steps:
   1. Review the generated documents
-  2. Run /gsd-plan-phase 1 to create Phase 1 plan
-  3. Run /gsd-execute-phase to begin implementation
+  2. Run /gsd:commands:plan-phase 1 to create Phase 1 plan
+  3. Run /gsd:commands:execute-phase to begin implementation
 
 Other commands:
-  /gsd-list-projects   - See all projects
-  /gsd-set-project     - Switch to another project
-  /gsd-progress        - Check current status
+  /gsd:commands:list-projects   - See all projects
+  /gsd:commands:set-project     - Switch to another project
+  /gsd:commands:progress        - Check current status
 ```
 
 ## Guidelines

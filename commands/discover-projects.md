@@ -27,7 +27,7 @@ No project tags found in recent commit history.
 Project tags look like: [project-name] in commit messages
 Example: "[my-feature] feat(phase1-task1): Add new component"
 
-To create a new project: /gsd-new-project
+To create a new project: /gsd:commands:new-project
 ```
 
 ### Step 2: Check Registration Status
@@ -110,13 +110,13 @@ Registered Projects
     Directory: ~/.claude/planning/projects/bugfix-auth/
 
 Projects are registered but need setup. For each project:
-  1. Run /gsd-set-project <name> to switch to it
+  1. Run /gsd:commands:set-project <name> to switch to it
   2. Create PROJECT.md, REQUIREMENTS.md, ROADMAP.md manually
-     or run /gsd-new-project to set up from scratch
+     or run /gsd:commands:new-project to set up from scratch
 
 Commands:
-  /gsd-set-project <name>   Switch to a project
-  /gsd-list-projects        Show all projects
+  /gsd:commands:set-project <name>   Switch to a project
+  /gsd:commands:list-projects        Show all projects
 ```
 
 ## Commit Tag Analysis

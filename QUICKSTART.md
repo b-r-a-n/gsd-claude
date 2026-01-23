@@ -30,7 +30,7 @@ You should see all checks passing. If not, run the install script:
 Start Claude Code in your project directory, then create a new GSD project:
 
 ```
-/gsd-new-project
+/gsd:commands:new-project
 ```
 
 Claude will ask you for:
@@ -45,7 +45,7 @@ This creates a planning structure under `~/.claude/planning/projects/<project-na
 Plan what you want to accomplish in phase 1:
 
 ```
-/gsd-plan-phase 1
+/gsd:commands:plan-phase 1
 ```
 
 You'll define:
@@ -87,7 +87,7 @@ Success Criteria:
 Start working through the phase:
 
 ```
-/gsd-execute-phase
+/gsd:commands:execute-phase
 ```
 
 Claude will:
@@ -96,14 +96,14 @@ Claude will:
 3. Track progress in real-time
 4. Update completion status
 
-During execution, you can check progress anytime with `/gsd-progress`.
+During execution, you can check progress anytime with `/gsd:commands:progress`.
 
 ## Step 5: Check Progress
 
 View your current status:
 
 ```
-/gsd-progress
+/gsd:commands:progress
 ```
 
 This shows:
@@ -117,7 +117,7 @@ This shows:
 For simple, single-session tasks that don't need full planning:
 
 ```
-/gsd-quick
+/gsd:commands:quick
 ```
 
 Quick mode is perfect for:
@@ -132,18 +132,18 @@ It still tracks your work but skips the formal planning phase.
 
 | Command | Description | When to Use |
 |---------|-------------|-------------|
-| `/gsd-new-project` | Create project | Starting a new project |
-| `/gsd-set-project` | Switch project | Working on different project |
-| `/gsd-list-projects` | Show projects | See all your projects |
-| `/gsd-discover-projects` | Find projects | Scan for existing codebases |
-| `/gsd-map-codebase` | Analyze code | Understand project structure |
-| `/gsd-plan-phase` | Plan phase | Before starting new phase |
-| `/gsd-execute-phase` | Execute phase | Ready to do the work |
-| `/gsd-verify-work` | Check work | After completing phase |
-| `/gsd-progress` | Show status | Check current state |
-| `/gsd-pause-work` | Save state | Need to stop working |
-| `/gsd-resume-work` | Restore state | Coming back to work |
-| `/gsd-quick` | Quick mode | Simple, fast tasks |
+| `/gsd:commands:new-project` | Create project | Starting a new project |
+| `/gsd:commands:set-project` | Switch project | Working on different project |
+| `/gsd:commands:list-projects` | Show projects | See all your projects |
+| `/gsd:commands:discover-projects` | Find projects | Scan for existing codebases |
+| `/gsd:commands:map-codebase` | Analyze code | Understand project structure |
+| `/gsd:commands:plan-phase` | Plan phase | Before starting new phase |
+| `/gsd:commands:execute-phase` | Execute phase | Ready to do the work |
+| `/gsd:commands:verify-work` | Check work | After completing phase |
+| `/gsd:commands:progress` | Show status | Check current state |
+| `/gsd:commands:pause-work` | Save state | Need to stop working |
+| `/gsd:commands:resume-work` | Restore state | Coming back to work |
+| `/gsd:commands:quick` | Quick mode | Simple, fast tasks |
 
 ## Example Workflow
 
@@ -154,40 +154,40 @@ Here's a complete example building a REST API:
 cd ~/projects/my-api
 
 # Create the GSD project
-/gsd-new-project
+/gsd:commands:new-project
 > Name: my-api
 > Description: REST API for user management
 > Goals: CRUD operations, authentication, tests
 
 # Plan phase 1
-/gsd-plan-phase 1
+/gsd:commands:plan-phase 1
 > Phase: Project Setup
 > Tasks: Init npm, TypeScript, Express setup, folder structure
 
 # Execute phase 1
-/gsd-execute-phase
+/gsd:commands:execute-phase
 [Claude works through setup tasks]
 
 # Check progress
-/gsd-progress
+/gsd:commands:progress
 
 # Plan phase 2
-/gsd-plan-phase 2
+/gsd:commands:plan-phase 2
 > Phase: Core API
 > Tasks: User routes, controllers, models, validation
 
 # Execute phase 2
-/gsd-execute-phase
+/gsd:commands:execute-phase
 [Claude builds the API]
 
 # Need to stop? Pause your work
-/gsd-pause-work
+/gsd:commands:pause-work
 
 # Coming back later? Resume
-/gsd-resume-work
+/gsd:commands:resume-work
 
 # Verify the completed work
-/gsd-verify-work
+/gsd:commands:verify-work
 ```
 
 ## Troubleshooting
@@ -196,20 +196,20 @@ cd ~/projects/my-api
 
 Make sure you've created a project first:
 ```
-/gsd-new-project
+/gsd:commands:new-project
 ```
 
 Or set an existing project:
 ```
-/gsd-list-projects
-/gsd-set-project <project-name>
+/gsd:commands:list-projects
+/gsd:commands:set-project <project-name>
 ```
 
 ### "No active phase" error
 
 You need to plan a phase before executing:
 ```
-/gsd-plan-phase 1
+/gsd:commands:plan-phase 1
 ```
 
 ### Scripts not executable
@@ -252,10 +252,10 @@ You should see `.md` files for each command.
 
 3. **Use quick mode for small tasks** - Don't over-plan simple fixes
 
-4. **Pause before stopping** - Always `/gsd-pause-work` to save context
+4. **Pause before stopping** - Always `/gsd:commands:pause-work` to save context
 
-5. **Verify after each phase** - Use `/gsd-verify-work` to ensure quality
+5. **Verify after each phase** - Use `/gsd:commands:verify-work` to ensure quality
 
-6. **Review progress regularly** - `/gsd-progress` keeps you oriented
+6. **Review progress regularly** - `/gsd:commands:progress` keeps you oriented
 
 Happy shipping!

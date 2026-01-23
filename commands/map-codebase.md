@@ -219,7 +219,7 @@ Key findings:
 
 Map saved: .planning/research/codebase-map.md
 
-Tip: Reference this map when running /gsd-new-project
+Tip: Reference this map when running /gsd:commands:new-project
 ```
 
 ## Guidelines

@@ -37,9 +37,9 @@ If no active project is found:
 No active GSD project found.
 
 Run one of:
-  /gsd-new-project       Create a new project
-  /gsd-set-project <name> Switch to an existing project
-  /gsd-list-projects     See available projects
+  /gsd:commands:new-project       Create a new project
+  /gsd:commands:set-project <name> Switch to an existing project
+  /gsd:commands:list-projects     See available projects
 ```
 
 Set the planning directory based on active project:
@@ -207,7 +207,7 @@ Issues: [N] found ([critical], [high], [medium], [low])
 Report: $PLANNING_DIR/phases/phase-XX/VERIFICATION.md
 
 [If PASS]
-Next: Run /gsd-plan-phase [N+1] to continue
+Next: Run /gsd:commands:plan-phase [N+1] to continue
 
 [If FAIL]
 Action needed: Review issues in verification report

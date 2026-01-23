@@ -22,10 +22,10 @@ If no active project is found:
 No active GSD project found.
 
 Run one of:
-  /gsd-new-project       Create a new project
-  /gsd-set-project <name> Switch to an existing project
-  /gsd-list-projects     See available projects
-  /gsd-discover-projects Find projects from commits
+  /gsd:commands:new-project       Create a new project
+  /gsd:commands:set-project <name> Switch to an existing project
+  /gsd:commands:list-projects     See available projects
+  /gsd:commands:discover-projects Find projects from commits
 ```
 
 Set the planning directory based on active project:
@@ -96,11 +96,11 @@ Files: [file1.ts, file2.ts]
 Commits are tagged with: [project-name]
 
 Commands:
-  /gsd-execute-phase    Continue execution
-  /gsd-pause-work       Save and pause
-  /gsd-verify-work      Verify phase 1
-  /gsd-set-project      Switch to another project
-  /gsd-list-projects    See all projects
+  /gsd:commands:execute-phase    Continue execution
+  /gsd:commands:pause-work       Save and pause
+  /gsd:commands:verify-work      Verify phase 1
+  /gsd:commands:set-project      Switch to another project
+  /gsd:commands:list-projects    See all projects
 ```
 
 ### Simplified Output (for quick checks)
@@ -116,7 +116,7 @@ Current: Task 2.3 - [Title]
 Status: In Progress
 Commits tagged: [project-name]
 
-Next: /gsd-execute-phase to continue
+Next: /gsd:commands:execute-phase to continue
 ```
 
 ### No Active Work
@@ -129,7 +129,7 @@ GSD Status: [Project Name]
 Phase 1/3: [Phase Name]
 Status: Not started
 
-Next: /gsd-plan-phase 1 to create phase plan
+Next: /gsd:commands:plan-phase 1 to create phase plan
 ```
 
 ## Progress Indicators

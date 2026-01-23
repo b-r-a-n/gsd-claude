@@ -37,9 +37,9 @@ If no active project is found:
 No active GSD project found.
 
 Run one of:
-  /gsd-new-project       Create a new project
-  /gsd-set-project <name> Switch to an existing project
-  /gsd-list-projects     See available projects
+  /gsd:commands:new-project       Create a new project
+  /gsd:commands:set-project <name> Switch to an existing project
+  /gsd:commands:list-projects     See available projects
 ```
 
 Set the planning directory based on active project:
@@ -123,7 +123,7 @@ Create `$PLANNING_DIR/sessions/session-${SESSION_ID}.md`:
 ## Resume Instructions
 
 When resuming this session:
-1. Run: /gsd-set-project [project-name]
+1. Run: /gsd:commands:set-project [project-name]
 2. Check out branch: [branch]
 3. Review uncommitted changes (if any)
 4. Continue with: [specific next action]
@@ -171,9 +171,9 @@ Uncommitted changes:
 
 Note: [user's note or "No note provided"]
 
-To resume this project: /gsd-resume-work
-To switch projects: /gsd-set-project <name>
-To list all projects: /gsd-list-projects
+To resume this project: /gsd:commands:resume-work
+To switch projects: /gsd:commands:set-project <name>
+To list all projects: /gsd:commands:list-projects
 ```
 
 ## Quick Pause vs Detailed Pause

@@ -27,9 +27,9 @@ If the project doesn't exist in `~/.claude/planning/projects/`, inform the user:
 ```
 Project '[name]' is not registered.
 
-To register it, run: /gsd-new-project [name]
+To register it, run: /gsd:commands:new-project [name]
 
-Or to discover projects from commit history: /gsd-discover-projects
+Or to discover projects from commit history: /gsd:commands:discover-projects
 ```
 
 ### Step 2: Set Active Project
@@ -57,9 +57,9 @@ Project details:
 Planning directory: ~/.claude/planning/projects/[project-name]/
 
 Available commands:
-  /gsd-progress        Show project status
-  /gsd-execute-phase   Continue execution
-  /gsd-plan-phase      Plan next phase
+  /gsd:commands:progress        Show project status
+  /gsd:commands:execute-phase   Continue execution
+  /gsd:commands:plan-phase      Plan next phase
 ```
 
 ### Step 4: Load Project State

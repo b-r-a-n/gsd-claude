@@ -27,9 +27,9 @@ If no active project is found:
 No active GSD project found.
 
 Run one of:
-  /gsd-new-project       Create a new project
-  /gsd-set-project <name> Switch to an existing project
-  /gsd-list-projects     See available projects
+  /gsd:commands:new-project       Create a new project
+  /gsd:commands:set-project <name> Switch to an existing project
+  /gsd:commands:list-projects     See available projects
 ```
 
 Set the planning directory based on active project:
@@ -54,9 +54,9 @@ If no sessions found:
 No paused sessions found for project: [project-name]
 
 Check $PLANNING_DIR/STATE.md for current state, or run:
-  /gsd-progress      - See project status
-  /gsd-execute-phase - Continue execution
-  /gsd-list-projects - Switch to another project
+  /gsd:commands:progress      - See project status
+  /gsd:commands:execute-phase - Continue execution
+  /gsd:commands:list-projects - Switch to another project
 ```
 
 ### Step 2: Load Session
@@ -180,7 +180,7 @@ Files to work with:
 
 Commits will be tagged with: [project-name]
 
-Run /gsd-execute-phase to continue execution
+Run /gsd:commands:execute-phase to continue execution
 ```
 
 ## Session Selection

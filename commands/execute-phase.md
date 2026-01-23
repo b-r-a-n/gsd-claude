@@ -27,9 +27,9 @@ If no active project is found:
 No active GSD project found.
 
 Run one of:
-  /gsd-new-project       Create a new project
-  /gsd-set-project <name> Switch to an existing project
-  /gsd-list-projects     See available projects
+  /gsd:commands:new-project       Create a new project
+  /gsd:commands:set-project <name> Switch to an existing project
+  /gsd:commands:list-projects     See available projects
 ```
 
 Set the planning directory based on active project:
@@ -167,8 +167,8 @@ Updated files:
   $PLANNING_DIR/STATE.md
 
 Next steps:
-  1. Run /gsd-verify-work to verify implementation
-  2. Run /gsd-plan-phase [N+1] to plan next phase
+  1. Run /gsd:commands:verify-work to verify implementation
+  2. Run /gsd:commands:plan-phase [N+1] to plan next phase
 ```
 
 Update `$PLANNING_DIR/STATE.md`:

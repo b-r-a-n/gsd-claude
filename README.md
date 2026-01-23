@@ -42,7 +42,7 @@ cd ~/.claude/commands/gsd
 ### 1. Create a new project
 
 ```
-/gsd-new-project
+/gsd:commands:new-project
 ```
 
 Follow the prompts to name your project and describe what you're building.
@@ -50,7 +50,7 @@ Follow the prompts to name your project and describe what you're building.
 ### 2. Plan your first phase
 
 ```
-/gsd-plan-phase 1
+/gsd:commands:plan-phase 1
 ```
 
 Define what needs to be accomplished in phase 1, including objectives, deliverables, and success criteria.
@@ -58,7 +58,7 @@ Define what needs to be accomplished in phase 1, including objectives, deliverab
 ### 3. Execute the phase
 
 ```
-/gsd-execute-phase
+/gsd:commands:execute-phase
 ```
 
 Claude will work through the phase systematically, tracking progress as tasks are completed.
@@ -66,7 +66,7 @@ Claude will work through the phase systematically, tracking progress as tasks ar
 ### 4. Check progress
 
 ```
-/gsd-progress
+/gsd:commands:progress
 ```
 
 See what's been completed and what remains.
@@ -75,18 +75,18 @@ See what's been completed and what remains.
 
 | Command | Description |
 |---------|-------------|
-| `/gsd-new-project` | Create a new GSD project with planning structure |
-| `/gsd-set-project` | Switch active project context |
-| `/gsd-list-projects` | Show all GSD projects |
-| `/gsd-discover-projects` | Scan directory for potential projects |
-| `/gsd-map-codebase` | Analyze and document codebase structure |
-| `/gsd-plan-phase` | Plan objectives and tasks for a phase |
-| `/gsd-execute-phase` | Execute the current phase with tracking |
-| `/gsd-verify-work` | Validate completed work against requirements |
-| `/gsd-progress` | Display current progress and status |
-| `/gsd-pause-work` | Save session state for later resumption |
-| `/gsd-resume-work` | Restore previous session context |
-| `/gsd-quick` | Quick mode for simple, single-session tasks |
+| `/gsd:commands:new-project` | Create a new GSD project with planning structure |
+| `/gsd:commands:set-project` | Switch active project context |
+| `/gsd:commands:list-projects` | Show all GSD projects |
+| `/gsd:commands:discover-projects` | Scan directory for potential projects |
+| `/gsd:commands:map-codebase` | Analyze and document codebase structure |
+| `/gsd:commands:plan-phase` | Plan objectives and tasks for a phase |
+| `/gsd:commands:execute-phase` | Execute the current phase with tracking |
+| `/gsd:commands:verify-work` | Validate completed work against requirements |
+| `/gsd:commands:progress` | Display current progress and status |
+| `/gsd:commands:pause-work` | Save session state for later resumption |
+| `/gsd:commands:resume-work` | Restore previous session context |
+| `/gsd:commands:quick` | Quick mode for simple, single-session tasks |
 
 ## Documentation
 
@@ -171,7 +171,7 @@ This prevents partial writes and ensures file integrity.
 
 For concurrent work on different projects:
 - Use `GSD_PROJECT` environment variable (recommended)
-- Or run `/gsd-set-project` in each session
+- Or run `/gsd:commands:set-project` in each session
 
 ### What's Safe
 

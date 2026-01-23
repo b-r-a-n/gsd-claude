@@ -14,7 +14,7 @@ You are executing a single task quickly without the full GSD planning workflow. 
 
 ## When to Use
 
-Use `/gsd-quick` for:
+Use `/gsd:commands:quick` for:
 - Bug fixes
 - Small features
 - Refactoring
@@ -22,7 +22,7 @@ Use `/gsd-quick` for:
 - Single-file changes
 - Tasks that don't need multi-step planning
 
-Use full GSD workflow (`/gsd-new-project` → `/gsd-plan-phase` → `/gsd-execute-phase`) for:
+Use full GSD workflow (`/gsd:commands:new-project` → `/gsd:commands:plan-phase` → `/gsd:commands:execute-phase`) for:
 - New features requiring multiple files
 - Architectural changes
 - Multi-day projects
@@ -110,7 +110,7 @@ Commit: [hash] - [message]
 
 ### Example 1: Bug Fix
 ```
-User: /gsd-quick fix the null pointer in user.ts line 42
+User: /gsd:commands:quick fix the null pointer in user.ts line 42
 
 Claude:
 1. Reads user.ts
@@ -121,7 +121,7 @@ Claude:
 
 ### Example 2: Add Function
 ```
-User: /gsd-quick add a formatDate utility function to utils.ts
+User: /gsd:commands:quick add a formatDate utility function to utils.ts
 
 Claude:
 1. Reads utils.ts to understand patterns
@@ -131,7 +131,7 @@ Claude:
 
 ### Example 3: Documentation
 ```
-User: /gsd-quick update README with new installation steps
+User: /gsd:commands:quick update README with new installation steps
 
 Claude:
 1. Reads README.md

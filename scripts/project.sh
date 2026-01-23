@@ -66,7 +66,7 @@ set_active_project() {
   lock_file=$(gsd_project_hold "$project" 5)
   if [ $? -ne 0 ]; then
     echo "Error: Project '$project' not registered" >&2
-    echo "Run: gsd-new-project $project" >&2
+    echo "Run: /gsd:commands:new-project $project" >&2
     return 1
   fi
 
@@ -99,7 +99,7 @@ register_project() {
   if [ -d "$project_dir" ]; then
     gsd_lock_release "$lock_file"
     echo "Error: Project '$project_name' already exists" >&2
-    echo "Use: /gsd-set-project $project_name" >&2
+    echo "Use: /gsd:commands:set-project $project_name" >&2
     return 1
   fi
 

@@ -27,9 +27,9 @@ If no active project is found:
 No active GSD project found.
 
 Run one of:
-  /gsd-new-project       Create a new project
-  /gsd-set-project <name> Switch to an existing project
-  /gsd-list-projects     See available projects
+  /gsd:commands:new-project       Create a new project
+  /gsd:commands:set-project <name> Switch to an existing project
+  /gsd:commands:list-projects     See available projects
 ```
 
 Set the planning directory based on active project:
@@ -45,7 +45,7 @@ Read these files from the project's planning directory to understand the project
 3. `$PLANNING_DIR/ROADMAP.md` - Phase overview
 4. `$PLANNING_DIR/STATE.md` - Current state
 
-If any files are missing, inform the user and suggest running `/gsd-new-project` first.
+If any files are missing, inform the user and suggest running `/gsd:commands:new-project` first.
 
 ### Step 2: Identify Phase Scope
 
@@ -189,7 +189,7 @@ Files created:
 
 Note: Commits will be automatically tagged with [project-name]
 
-Next: Run /gsd-execute-phase to begin implementation
+Next: Run /gsd:commands:execute-phase to begin implementation
 ```
 
 ## Guidelines

@@ -16,8 +16,8 @@ Read `~/.claude/planning/projects/` directory. If empty or doesn't exist:
 ```
 No GSD projects registered.
 
-To create a new project: /gsd-new-project
-To discover projects from commits: /gsd-discover-projects
+To create a new project: /gsd:commands:new-project
+To discover projects from commits: /gsd:commands:discover-projects
 ```
 
 ### Step 2: Get Active Project
@@ -64,9 +64,9 @@ GSD Projects
 Projects: 3 total (1 active, 1 paused, 1 completed)
 
 Commands:
-  /gsd-set-project <name>   Switch to a project
-  /gsd-new-project          Create new project
-  /gsd-discover-projects    Find projects from commits
+  /gsd:commands:set-project <name>   Switch to a project
+  /gsd:commands:new-project          Create new project
+  /gsd:commands:discover-projects    Find projects from commits
 ```
 
 ### Step 4: Project Details
