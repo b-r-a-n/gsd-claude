@@ -130,6 +130,63 @@ See what's been completed and what remains.
 
 5. **Session Management** - Pause work at any time and resume with full context restoration
 
+## Multi-Session Usage
+
+### GSD_PROJECT Environment Variable
+
+When running multiple Claude sessions simultaneously, you can use the `GSD_PROJECT` environment variable to isolate each session to a specific project:
+
+```bash
+GSD_PROJECT=my-project claude
+```
+
+**Priority order for project detection:**
+1. `GSD_PROJECT` environment variable (highest priority)
+2. `.current-project` file in planning directory
+3. Most recently active project (by `last-active` timestamp)
+4. Most recent commit with `[project]` tag
+
+This allows you to have multiple terminals working on different projects without interference.
+
+## Concurrency
+
+GSD is designed for safe concurrent usage by multiple Claude instances.
+
+### File Locking
+
+All state file operations (STATE.md, PROGRESS.md, `.current-project`) use file locking to prevent race conditions:
+
+- **Linux**: Uses `flock` for advisory locking
+- **macOS**: Uses a custom lock file mechanism for compatibility
+
+### Atomic Operations
+
+Critical file updates use the "write-to-temp-then-rename" pattern:
+1. Write new content to a temporary file
+2. Atomically rename temp file to target path
+
+This prevents partial writes and ensures file integrity.
+
+### Project Isolation
+
+For concurrent work on different projects:
+- Use `GSD_PROJECT` environment variable (recommended)
+- Or run `/gsd-set-project` in each session
+
+### What's Safe
+
+- Multiple sessions working on **different projects** simultaneously
+- Multiple sessions working on **different waves** of the same phase
+- Running `verify.sh` concurrently
+
+### Best Practices
+
+1. Use `GSD_PROJECT=<name>` when launching sessions that work on different projects
+2. Coordinate wave execution when multiple sessions work on the same project
+3. Commits are tagged with `[project-name]` for traceability
+
+For detailed testing procedures, see [docs/CONCURRENCY-TESTING.md](docs/CONCURRENCY-TESTING.md).
+
 ## License
 
 MIT License - See [LICENSE](LICENSE) for details.
