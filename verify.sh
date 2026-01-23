@@ -160,7 +160,8 @@ echo ""
 
 if [[ -x "$GSD_DIR/scripts/detect-vcs.sh" ]]; then
     # Test in a git directory
-    TEMP_DIR=$(mktemp -d)
+    # Use unique temp directory with GSD prefix and PID for concurrent-safe operation
+    TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/gsd-verify-$$-XXXXXX")
     cd "$TEMP_DIR" || exit 1
 
     # Initialize a test git repo
