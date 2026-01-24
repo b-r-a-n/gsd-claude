@@ -70,7 +70,18 @@ Read verification context from the project's planning directory:
 1. `$PLANNING_DIR/PROJECT.md` - Success criteria
 2. `$PLANNING_DIR/REQUIREMENTS.md` - Detailed requirements
 3. `$PLANNING_DIR/phases/phase-XX/PLAN.md` - What was planned
-4. `$PLANNING_DIR/phases/phase-XX/PROGRESS.md` - What was completed
+
+**Query Task API for completed work:**
+```
+TaskList -> filter by:
+  - metadata.gsd_project == current_project
+  - metadata.gsd_phase == phase_number
+  - status == "completed"
+```
+
+This provides the authoritative list of what was completed, including commit hashes stored in task metadata.
+
+**Note:** Do not read STATE.md or PROGRESS.md for completion status. Task API is the sole source of truth.
 
 ### Step 2: Map Requirements to Implementation
 
@@ -189,9 +200,9 @@ Review implementation for:
 - No TODO/FIXME left behind?
 - Documentation updated if needed?
 
-### Step 5: Generate Verification Report
+### Step 5: Generate Verification Report (Write-Only)
 
-Create `$PLANNING_DIR/phases/phase-XX/VERIFICATION.md`:
+Create `$PLANNING_DIR/phases/phase-XX/VERIFICATION.md` (audit trail):
 
 ```markdown
 # Verification Report: Phase [N]
@@ -272,9 +283,9 @@ Items requiring human verification:
 [Summary paragraph about the verification results and next steps]
 ```
 
-### Step 6: Update State
+### Step 6: Update State (Audit Trail)
 
-Update `$PLANNING_DIR/STATE.md`:
+Update `$PLANNING_DIR/STATE.md` (write-only, for audit trail):
 
 ```markdown
 ## Current Status
@@ -285,6 +296,8 @@ Update `$PLANNING_DIR/STATE.md`:
 ## History
 - [YYYY-MM-DD HH:MM] Phase [N] verification: [PASS/FAIL]
 ```
+
+**Note:** STATE.md is write-only for audit purposes. Task API is the source of truth for task status.
 
 ### Step 7: Report to User
 

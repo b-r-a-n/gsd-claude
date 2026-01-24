@@ -75,10 +75,6 @@ if result.complete:
           ...
 ```
 
-## Legacy: background.sh (Deprecated)
-
-The following patterns use the deprecated `background.sh` script. They remain functional for backward compatibility but new code should use Task API metadata.
-
 ## When to Use Background Execution
 
 ### Use Background When:
@@ -94,13 +90,13 @@ The following patterns use the deprecated `background.sh` script. They remain fu
 
 ## Pattern 1: Spawn and Track
 
-**CRITICAL**: Always track spawned background work **immediately** after spawning using the `background.sh` script. This is a **required 2-step process** - GSD cannot automatically detect untracked background work.
+**CRITICAL**: Always track spawned background work **immediately** after spawning via TaskUpdate metadata. This is a **required 2-step process** - GSD cannot automatically detect untracked background work.
 
 **Why this matters:**
-- STATE.md's "Active Background Work" section only shows explicitly tracked items
+- Task metadata's `backgroundWork` array is the authoritative tracking location
 - verify-work and execute-phase cleanup only operate on tracked items
 - Untracked processes become orphaned and may cause resource leaks
-- The `/tasks` command shows all running work, but GSD commands only check STATE.md
+- The `/tasks` command shows all running work, but GSD commands only check task metadata
 
 ### Background Shell (Bash)
 
@@ -112,8 +108,17 @@ Use Bash tool:
 
 # Tool returns: { "shell_id": "abc123", "output_file": "/path/to/output" }
 
-# 2. Track it immediately
-~/.claude/commands/gsd/scripts/background.sh track_background shell abc123 "cargo build"
+# 2. Track it immediately in task metadata
+TaskUpdate:
+  taskId: "<current-task-id>"
+  metadata:
+    backgroundWork:
+      - id: "shell:abc123"
+        type: "shell"
+        description: "cargo build"
+        spawnedAt: "2024-01-15T14:30:00Z"
+        status: "running"
+        outputFile: "/path/to/output"
 ```
 
 ### Background Task (Agent)
@@ -127,8 +132,17 @@ Use Task tool:
 
 # Tool returns: { "task_id": "xyz789", "output_file": "/path/to/output" }
 
-# 2. Track it immediately
-~/.claude/commands/gsd/scripts/background.sh track_background task xyz789 "build monitor agent"
+# 2. Track it immediately in task metadata
+TaskUpdate:
+  taskId: "<current-task-id>"
+  metadata:
+    backgroundWork:
+      - id: "task:xyz789"
+        type: "task"
+        description: "build monitor agent"
+        spawnedAt: "2024-01-15T14:30:00Z"
+        status: "running"
+        outputFile: "/path/to/output"
 ```
 
 ## Pattern 2: Poll for Completion
@@ -165,13 +179,20 @@ Use TaskOutput tool:
 
 ```
 # In your command workflow:
-1. Check for tracked background work:
-   items=$(~/.claude/commands/gsd/scripts/background.sh list_background)
+1. Check for tracked background work in task metadata:
+   task = TaskGet(taskId)
+   backgroundWork = task.metadata.backgroundWork
 
 2. For each item, poll status:
    Use TaskOutput with block: false
 
-3. If still running, decide:
+3. Update metadata with completion status:
+   TaskUpdate:
+     taskId: "<task-id>"
+     metadata:
+       backgroundWork: [updated items with status: "completed"]
+
+4. If still running, decide:
    - Wait (use TaskOutput with block: true)
    - Kill (use KillShell for shells)
    - Continue (if work can proceed without it)
@@ -186,29 +207,33 @@ Use TaskOutput tool:
 Use KillShell tool:
   shell_id: "abc123"
 
-# Remove from tracking
-~/.claude/commands/gsd/scripts/background.sh clear_background abc123
+# Update metadata to reflect completion/cleanup
+task = TaskGet(taskId)
+updated_work = [item for item in task.metadata.backgroundWork if item.id != "shell:abc123"]
+TaskUpdate:
+  taskId: "<task-id>"
+  metadata:
+    backgroundWork: updated_work
 ```
 
 ### Cleanup All Background Work
 
 ```
-# 1. Get list of tracked items
-items=$(~/.claude/commands/gsd/scripts/background.sh get_background_ids)
+# 1. Get list of tracked items from task metadata
+task = TaskGet(taskId)
+backgroundWork = task.metadata.backgroundWork
 
 # 2. For each item, kill if needed
-for item in $items; do
-  type=$(echo $item | cut -d: -f1)
-  id=$(echo $item | cut -d: -f2)
-
-  if [ "$type" = "shell" ]; then
-    Use KillShell tool with shell_id: $id
-  fi
+for item in backgroundWork:
+  if item.type == "shell" and item.status == "running":
+    Use KillShell tool with shell_id: item.id.replace("shell:", "")
   # Note: Task agents cannot be killed, only awaited
-done
 
-# 3. Clear all tracking
-~/.claude/commands/gsd/scripts/background.sh clear_all_background
+# 3. Clear tracking in metadata
+TaskUpdate:
+  taskId: "<task-id>"
+  metadata:
+    backgroundWork: []
 ```
 
 ## Pattern 4: Timeout Handling
@@ -267,26 +292,16 @@ done
 
 ### execute-phase.md
 
-**Primary: Task API metadata tracking**
-
 After each batch completion:
 1. Query `TaskGet(taskId).metadata.backgroundWork` for all tasks
 2. Poll each running item via `TaskOutput`
 3. Prompt user if items are still running
 4. Update metadata with final statuses
 
-**Legacy: background.sh**
-
-After each wave completion:
-1. Check `background.sh list_background`
-2. Poll each item for completion
-3. Prompt user if items are still running
-4. Clear tracking when confirmed complete
-
 ### verify-work.md
 
 Before generating verification report:
-1. Check for any tracked background work (metadata or STATE.md)
+1. Check for any tracked background work in task metadata
 2. Ensure all items complete before finalizing
 3. Include background work status in report
 
@@ -347,28 +362,31 @@ Safety limit: Max 3 discovered tasks per batch before mandatory pause.
 ## Troubleshooting
 
 ### Check Current Background Work
-```bash
-# List all tracked items with details
-~/.claude/commands/gsd/scripts/background.sh list_background
 
-# Get count of tracked items
-~/.claude/commands/gsd/scripts/background.sh count_background
+```
+# Query task metadata for background work
+task = TaskGet(taskId)
+backgroundWork = task.metadata.backgroundWork
 
-# Check if any background work exists (returns 0 if yes, 1 if no)
-~/.claude/commands/gsd/scripts/background.sh has_background
+# Check each item's status
+for item in backgroundWork:
+  if item.status == "running":
+    result = TaskOutput(task_id: item.id, block: false)
+    # Update status based on result
 ```
 
 ### Clear Stale Entries
-```bash
-# Clear specific item
-~/.claude/commands/gsd/scripts/background.sh clear_background <id>
 
-# Clear all
-~/.claude/commands/gsd/scripts/background.sh clear_all_background
+```
+# Clear all background work from task metadata
+TaskUpdate:
+  taskId: "<task-id>"
+  metadata:
+    backgroundWork: []
 ```
 
 ### Find Orphaned Processes
-Use `/tasks` command in Claude Code to see all running background work.
+Use `/tasks` command in Claude Code to see all running background work (both tracked and untracked).
 
 ### Clean Up Old Session Files
 ```bash
@@ -384,17 +402,13 @@ Use `/tasks` command in Claude Code to see all running background work.
 
 ## Related Tools
 
-### Task API (Recommended)
+### Task API
 - `TaskCreate` - Create tasks with metadata for tracking
 - `TaskUpdate` - Update task status and metadata (including backgroundWork)
 - `TaskGet` - Retrieve task details including background work
 - `TaskList` - List all tasks, filter by project/phase
 - `TaskOutput` - Poll background work for completion
 - `TaskStop` - Stop a running background task
-
-### Legacy (Deprecated)
-- `background.sh` - GSD tracking script (`~/.claude/commands/gsd/scripts/background.sh`)
-- `session-gc.sh` - Session garbage collection (`~/.claude/commands/gsd/scripts/session-gc.sh`)
 
 ### Claude Code Built-in
 - `KillShell` - Terminate background shells

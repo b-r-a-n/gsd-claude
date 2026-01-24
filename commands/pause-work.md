@@ -64,12 +64,22 @@ PLANNING_DIR="$HOME/.claude/planning/projects/$PROJECT"
 
 ### Step 1: Capture Current State
 
-Gather information about current work:
+Gather information about current work from the Task API:
 
-1. **Current phase and task** from `$PLANNING_DIR/STATE.md`
-2. **Work in progress** - any uncommitted changes
+**Query TaskList for current work:**
+```
+TaskList -> filter by:
+  - metadata.gsd_project == current_project
+  - status == "in_progress"
+```
+
+Capture:
+1. **Current phase and task** from in_progress tasks in TaskList
+2. **Work in progress** - any uncommitted changes (via VCS)
 3. **Pending decisions** - things waiting for input
 4. **Next steps** - what should happen when resuming
+
+**Note:** STATE.md is write-only. Current state is read from Task API.
 
 ### Step 2: Check for Uncommitted Work
 
@@ -114,6 +124,28 @@ Create `$PLANNING_DIR/sessions/session-${SESSION_ID}.md`:
 - Phase [N]: [X/Y] tasks complete
 - Current wave: [X/Y] tasks complete
 
+### Task Snapshot
+
+Include all tasks from TaskList for this project (for recreation on resume):
+
+```json
+[
+  {
+    "subject": "[project] Phase X Task Y.Z: Title",
+    "description": "...",
+    "status": "completed|in_progress|pending",
+    "metadata": {
+      "gsd_project": "...",
+      "gsd_phase": N,
+      "gsd_task_id": "Y.Z",
+      ...
+    },
+    "blockedBy": ["task_id_1", "task_id_2"]
+  },
+  ...
+]
+```
+
 ### Uncommitted Changes
 [List of modified files, or "None"]
 
@@ -139,18 +171,19 @@ Create `$PLANNING_DIR/sessions/session-${SESSION_ID}.md`:
 
 When resuming this session:
 1. Run: /gsd:commands:set-project [project-name]
-2. Check out branch: [branch]
-3. Review uncommitted changes (if any)
-4. Continue with: [specific next action]
+2. Run: /gsd:commands:resume-work (recreates tasks from snapshot)
+3. Check out branch: [branch]
+4. Review uncommitted changes (if any)
+5. Continue with: [specific next action]
 
 ---
 Session ID: [timestamp]
 Project: [project-name]
 ```
 
-### Step 4: Update STATE.md
+### Step 4: Update STATE.md (Audit Trail)
 
-Update `$PLANNING_DIR/STATE.md` with pause information:
+Update `$PLANNING_DIR/STATE.md` with pause information (write-only, for audit trail):
 
 ```markdown
 ## Current Status
@@ -166,6 +199,8 @@ Update `$PLANNING_DIR/STATE.md` with pause information:
 ## History
 - [YYYY-MM-DD HH:MM] Work paused: [reason]
 ```
+
+**Note:** This is a write-only update for audit purposes. The session snapshot file contains the complete state for recovery.
 
 ### Step 5: Report
 

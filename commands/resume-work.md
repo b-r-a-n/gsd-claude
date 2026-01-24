@@ -74,13 +74,49 @@ Check $PLANNING_DIR/STATE.md for current state, or run:
   /gsd:commands:list-projects - Switch to another project
 ```
 
-### Step 2: Load Session
+### Step 2: Load Session and Recreate Tasks
 
 Read the session snapshot file and extract:
 - Phase and task that was in progress
+- Task snapshot (JSON array of all tasks)
 - Uncommitted changes (if any)
 - Pending decisions
 - Context and next steps
+
+**Recreate tasks from snapshot:**
+
+Parse the "Task Snapshot" JSON from the session file and recreate each task:
+
+```
+For each task in snapshot:
+  TaskCreate:
+    subject: task.subject
+    description: task.description
+    activeForm: task.activeForm
+    metadata: task.metadata
+
+  # Note the new task ID for dependency mapping
+  new_id_map[old_id] = new_task_id
+```
+
+**Restore dependencies:**
+```
+For each task with blockedBy:
+  TaskUpdate:
+    taskId: new_id_map[task.old_id]
+    addBlockedBy: [new_id_map[dep] for dep in task.blockedBy]
+```
+
+**Restore status:**
+```
+For each task:
+  if task.status != "pending":
+    TaskUpdate:
+      taskId: new_id_map[task.old_id]
+      status: task.status
+```
+
+This recreates the complete task state from the session snapshot, making the Task API the source of truth for the resumed session.
 
 ### Step 3: Verify State
 
@@ -158,9 +194,9 @@ These changes are still present. Options:
 Choice [1]:
 ```
 
-### Step 6: Update State
+### Step 6: Update State (Audit Trail)
 
-Update `$PLANNING_DIR/STATE.md`:
+Update `$PLANNING_DIR/STATE.md` (write-only, for audit trail):
 
 ```markdown
 ## Current Status
@@ -171,15 +207,19 @@ Update `$PLANNING_DIR/STATE.md`:
 ## Session
 - **Resumed at**: [YYYY-MM-DD HH:MM]
 - **Resumed from**: sessions/session-${SESSION_ID}.md
+- **Tasks restored**: [N] tasks recreated from snapshot
 
 ## History
 - [YYYY-MM-DD HH:MM] Work resumed from session-${SESSION_ID}
+- [YYYY-MM-DD HH:MM] [N] tasks recreated via TaskCreate
 ```
 
 Also touch the project's last-active file to update access time:
 ```bash
 touch "$PLANNING_DIR/last-active"
 ```
+
+**Note:** STATE.md is write-only for audit. Task API is now the source of truth after task recreation.
 
 ### Step 6.5: Session File Cleanup
 

@@ -71,17 +71,19 @@ This returns all tasks with their status, dependencies, and rich metadata.
 - If no ready tasks and some in_progress: wait for current tasks
 - If all tasks completed: report phase done
 
-**Fallback: Read Planning Files**
+**No tasks in Task API:**
+If TaskList returns no tasks for the current project/phase, report:
+```
+No tasks found in Task API for project: [project-name], phase: [N]
 
-If no tasks found in Task API (legacy project or migration in progress):
-1. `$PLANNING_DIR/STATE.md` - Current phase and task
-2. `$PLANNING_DIR/phases/phase-XX/PLAN.md` - Task details
-3. `$PLANNING_DIR/phases/phase-XX/PROGRESS.md` - Completion status
+This may indicate:
+- A new session (tasks were not recreated)
+- Phase not yet planned
 
-Determine what to execute:
-- If wave specified: execute that wave
-- If continuing: find first incomplete wave
-- If all complete: report phase done
+Run:
+  /gsd:commands:resume-work     Restore tasks from session snapshot
+  /gsd:commands:plan-phase [N]  Create tasks for this phase
+```
 
 ### Step 2: Execute Ready Tasks
 
@@ -118,13 +120,6 @@ while has_incomplete_tasks:
 
   # Re-query for newly unblocked tasks
 ```
-
-**Fallback: Parse PLAN.md waves**
-
-If no tasks found in Task API (legacy project), parse waves from PLAN.md:
-- Wave 1 tasks execute first (parallel)
-- Wave 2 tasks execute after Wave 1 completes
-- etc.
 
 ### Step 2.5: Handle Discovered Tasks
 
@@ -246,7 +241,7 @@ For each task, follow the executor agent guidelines:
 
 #### 3.1 Understand the Task
 
-**Primary: Use TaskGet (no PLAN.md read needed)**
+**Use TaskGet for complete task context:**
 ```
 task = TaskGet(taskId)
 metadata = task.metadata
@@ -260,11 +255,7 @@ constraints = metadata.gsd_constraints # Project constraints
 commit_type = metadata.gsd_commit_type # VCS commit type
 ```
 
-**Fallback: Read from PLAN.md**
-If task lacks rich metadata (`gsd_action` is null):
-- Read the task specification from PLAN.md completely
-- Identify all affected files
-- Understand the acceptance criteria
+**Note:** Task API is the sole source of truth for task state and context. PLAN.md is documentation only.
 
 #### 3.2 Read Context
 
@@ -273,9 +264,9 @@ If task lacks rich metadata (`gsd_action` is null):
 - Context snippet in `gsd_context` often sufficient
 - Constraints in `gsd_constraints` guide implementation
 
-**Without rich metadata (fallback):**
-- Read files listed in the task
-- Read related files if needed for understanding
+**If task has minimal metadata:**
+- Read source files listed in task description
+- Read related source files if needed for understanding
 - Note existing patterns to follow
 
 #### 3.3 Implement Changes
@@ -341,7 +332,7 @@ TaskUpdate:
     gsd_completed_at: "2024-01-15T14:30:00Z"
 ```
 
-**Secondary: PROGRESS.md (audit trail)**
+**Audit Trail: PROGRESS.md (write-only)**
 
 Also update `$PLANNING_DIR/phases/phase-XX/PROGRESS.md` for git-visible history:
 
@@ -354,9 +345,9 @@ Also update `$PLANNING_DIR/phases/phase-XX/PROGRESS.md` for git-visible history:
 
 Note: Commits are automatically tagged with `[project-name]` by the VCS adapter.
 
-**Secondary: STATE.md (fallback)**
+**Audit Trail: STATE.md (write-only)**
 
-Update `$PLANNING_DIR/STATE.md` for legacy compatibility:
+Update `$PLANNING_DIR/STATE.md` for audit trail:
 
 ```markdown
 ## Current Status
@@ -367,6 +358,8 @@ Update `$PLANNING_DIR/STATE.md` for legacy compatibility:
 ## History
 - [YYYY-MM-DD HH:MM] Task X.Y completed
 ```
+
+**Note:** STATE.md and PROGRESS.md are write-only for audit purposes. Task API is the sole source of truth for reads.
 
 ### Step 5: Batch Completion
 

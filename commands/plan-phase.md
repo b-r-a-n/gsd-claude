@@ -60,9 +60,10 @@ Read these files from the project's planning directory to understand the project
 1. `$PLANNING_DIR/PROJECT.md` - Goals and constraints
 2. `$PLANNING_DIR/REQUIREMENTS.md` - What needs to be built
 3. `$PLANNING_DIR/ROADMAP.md` - Phase overview
-4. `$PLANNING_DIR/STATE.md` - Current state
 
 If any files are missing, inform the user and suggest running `/gsd:commands:new-project` first.
+
+**Note:** STATE.md is write-only (for audit trail). Do not read from STATE.md for current state.
 
 ### Step 2: Identify Phase Scope
 
@@ -237,13 +238,12 @@ TaskCreate:
 - Only source files listed in `gsd_files` need to be read
 - REQUIREMENTS.md consulted only for deep reference
 
-**PLAN.md is now optional for execution:**
+**PLAN.md is documentation only:**
 With rich metadata, PLAN.md becomes documentation rather than a required data source.
 Keep PLAN.md for:
 - Human-readable phase overview
 - Git-visible planning history
 - Detailed rationale and context not in metadata
-- Fallback for tasks without rich metadata
 
 **Example:**
 ```

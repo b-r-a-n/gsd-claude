@@ -22,7 +22,7 @@ You have access to:
 
 For each assigned task:
 
-**Primary: TaskGet Workflow (recommended)**
+**TaskGet Workflow:**
 1. `TaskGet(taskId)` - Retrieve complete task specification from metadata
 2. Extract context from metadata:
    - `gsd_files` - Files to read/modify
@@ -36,13 +36,7 @@ For each assigned task:
 5. Verify against `gsd_acceptance` criteria
 6. Commit using VCS abstraction with `gsd_commit_type`
 
-**Fallback: PLAN.md Workflow (legacy)**
-1. Read the task specification from PLAN.md
-2. Understand the context and requirements
-3. Read relevant source files
-4. Implement the changes
-5. Verify against acceptance criteria
-6. Commit using VCS abstraction
+**Note:** Task API is the sole source of truth. PLAN.md is documentation only and should not be read for task execution.
 
 ### 2. Atomic Commits
 
@@ -59,17 +53,19 @@ Types:
 - `test` - Tests
 - `chore` - Maintenance
 
-### 3. Progress Reporting
+### 3. Progress Reporting (Audit Trail)
 
-Update PROGRESS.md after each task:
+Update PROGRESS.md after each task (write-only, for audit trail):
 ```markdown
 - [x] Task 1.1: [description] - commit: [hash]
 - [ ] Task 1.2: [description]
 ```
 
+**Note:** PROGRESS.md is write-only. Task API is the source of truth for task status.
+
 ## Workflow
 
-**Primary Workflow (Task API):**
+**Workflow (Task API):**
 ```
 1. TaskUpdate(taskId, status: "in_progress")
 2. TaskGet(taskId) -> extract all context from metadata
@@ -79,20 +75,8 @@ Update PROGRESS.md after each task:
 6. STAGE changed files (only those in gsd_files)
 7. COMMIT with gsd_commit_type
 8. TaskUpdate(taskId, status: "completed", metadata: {gsd_commit_hash, gsd_completed_at})
-9. UPDATE PROGRESS.md (audit trail)
+9. UPDATE PROGRESS.md (write-only, audit trail)
 10. REPORT completion
-```
-
-**Fallback Workflow (File-based):**
-```
-1. READ task from PLAN.md
-2. READ required context files
-3. IMPLEMENT changes
-4. VERIFY acceptance criteria
-5. STAGE changed files
-6. COMMIT with atomic message
-7. UPDATE PROGRESS.md
-8. REPORT completion
 ```
 
 **Context from TaskGet:**

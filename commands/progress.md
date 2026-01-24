@@ -49,9 +49,9 @@ PLANNING_DIR="$HOME/.claude/planning/projects/$PROJECT"
    PLANNING_DIR="$HOME/.claude/planning/projects/$PROJECT"
    ```
 
-### Step 2: Load State (Task API Primary, Files Fallback)
+### Step 2: Load State (Task API Only)
 
-**Primary: Query Task API**
+**Query Task API:**
 
 ```
 TaskList
@@ -62,12 +62,15 @@ Filter tasks by metadata:
 - Group by `gsd_phase` for per-phase counts
 - Count by status: pending, in_progress, completed
 
-**Fallback: Read Files**
+**No tasks found:**
+If TaskList returns no tasks for the current project, display:
+```
+No progress data available (new session or tasks not loaded).
 
-If no tasks found in Task API (legacy project), read from files:
-1. `$PLANNING_DIR/STATE.md` - Current state
-2. `$PLANNING_DIR/ROADMAP.md` - All phases
-3. `$PLANNING_DIR/phases/*/PROGRESS.md` - Phase completion
+Run:
+  /gsd:commands:resume-work     Restore tasks from session snapshot
+  /gsd:commands:plan-phase [N]  Create tasks for a phase
+```
 
 ### Step 3: Calculate Progress
 
@@ -80,14 +83,8 @@ For each phase in grouped tasks:
   percentage = (completed / total) * 100
 ```
 
-**From Files (fallback):**
-For each phase:
-- Count total tasks (lines matching `- [ ]` or `- [x]`)
-- Count completed tasks (lines matching `- [x]`)
-- Calculate percentage
-
 Overall:
-- Current phase
+- Current phase (phase with in_progress tasks, or highest incomplete phase)
 - Overall completion
 
 ### Step 4: Display Status
