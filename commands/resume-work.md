@@ -74,49 +74,55 @@ Check $PLANNING_DIR/STATE.md for current state, or run:
   /gsd:commands:list-projects - Switch to another project
 ```
 
-### Step 2: Load Session and Recreate Tasks
+### Step 2: Query Task API for Current State
 
 Read the session snapshot file and extract:
 - Phase and task that was in progress
-- Task snapshot (JSON array of all tasks)
+- In-progress task IDs (if present in session)
 - Uncommitted changes (if any)
 - Pending decisions
 - Context and next steps
 
-**Recreate tasks from snapshot:**
-
-Parse the "Task Snapshot" JSON from the session file and recreate each task:
+**Query TaskList for existing tasks:**
 
 ```
-For each task in snapshot:
-  TaskCreate:
-    subject: task.subject
-    description: task.description
-    activeForm: task.activeForm
-    metadata: task.metadata
-
-  # Note the new task ID for dependency mapping
-  new_id_map[old_id] = new_task_id
+TaskList -> filter by:
+  - metadata.gsd_project == project_name_from_session
 ```
 
-**Restore dependencies:**
+**If tasks exist:**
+- Resume from where you left off
+- No recreation needed - tasks already exist in Task API
+- Verify task count matches session's progress summary
+- Find in-progress tasks to continue working on
+
+**If no tasks exist (Task API cleared):**
+- See Edge Case Handling below
+
+### Edge Case: Task API Cleared
+
+If TaskList returns no tasks for the project, the Task API may have been cleared between sessions.
+
+**Option 1: Re-plan from PLAN.md**
 ```
-For each task with blockedBy:
-  TaskUpdate:
-    taskId: new_id_map[task.old_id]
-    addBlockedBy: [new_id_map[dep] for dep in task.blockedBy]
+The session file contains phase information. Offer to re-create tasks:
+  /gsd:commands:plan-phase [N]
 ```
 
-**Restore status:**
+**Option 2: Start Fresh**
 ```
-For each task:
-  if task.status != "pending":
-    TaskUpdate:
-      taskId: new_id_map[task.old_id]
-      status: task.status
+If PLAN.md doesn't exist either:
+  "Task state not available. Session context preserved but tasks need re-planning."
+  Offer to run /gsd:commands:new-project or /gsd:commands:plan-phase
 ```
 
-This recreates the complete task state from the session snapshot, making the Task API the source of truth for the resumed session.
+**Option 3: Read-Only Resume**
+```
+Continue with session context only:
+- Branch, revision, and context notes are preserved
+- User can manually work without formal task tracking
+- Useful for quick ad-hoc work
+```
 
 ### Step 3: Verify State
 
@@ -207,11 +213,11 @@ Update `$PLANNING_DIR/STATE.md` (write-only, for audit trail):
 ## Session
 - **Resumed at**: [YYYY-MM-DD HH:MM]
 - **Resumed from**: sessions/session-${SESSION_ID}.md
-- **Tasks restored**: [N] tasks recreated from snapshot
+- **Tasks verified**: [N] tasks found in Task API
 
 ## History
 - [YYYY-MM-DD HH:MM] Work resumed from session-${SESSION_ID}
-- [YYYY-MM-DD HH:MM] [N] tasks recreated via TaskCreate
+- [YYYY-MM-DD HH:MM] [N] tasks verified via TaskList
 ```
 
 Also touch the project's last-active file to update access time:
@@ -219,7 +225,7 @@ Also touch the project's last-active file to update access time:
 touch "$PLANNING_DIR/last-active"
 ```
 
-**Note:** STATE.md is write-only for audit. Task API is now the source of truth after task recreation.
+**Note:** STATE.md is write-only for audit. Task API is the source of truth for task state.
 
 ### Step 6.5: Session File Cleanup
 
