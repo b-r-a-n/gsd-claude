@@ -264,6 +264,70 @@ Log the cleanup in PROGRESS.md:
 
 See `~/.claude/commands/gsd/docs/background-patterns.md` for detailed patterns.
 
+### Step 5.6: VCS Clean Check
+
+Before completing the phase, verify the working directory is clean. This ensures no uncommitted changes are left behind.
+
+#### 5.6.1 Check Working Directory State
+
+```bash
+~/.claude/commands/gsd/scripts/vcs.sh vcs-dirty
+```
+
+**Exit code 0 (clean)**: Proceed to Step 6 (Phase Completion).
+
+**Exit code 1 (dirty)**: Uncommitted changes detected - proceed to 5.6.2.
+
+#### 5.6.2 Present Uncommitted Changes
+
+Get the current status and present to the user:
+
+```bash
+~/.claude/commands/gsd/scripts/vcs.sh vcs-status
+```
+
+Display the changes with options:
+
+```
+⚠ Uncommitted changes detected:
+
+[vcs-status output]
+
+Options:
+1. Commit changes - Stage and commit with a message
+2. Stash changes - Save for later (git stash / hg shelve)
+3. Discard changes - Revert all uncommitted changes (DESTRUCTIVE)
+4. Continue anyway - Proceed with dirty working directory (not recommended)
+
+Choice [1]:
+```
+
+#### 5.6.3 Handle User Choice
+
+**Option 1 - Commit**:
+- Ask for commit message
+- Stage all changes: `vcs.sh vcs-stage .`
+- Commit: `vcs.sh vcs-commit "<message>"`
+- Log in PROGRESS.md: `[YYYY-MM-DD HH:MM] Manual commit before phase completion: <hash>`
+
+**Option 2 - Stash**:
+- For Git: `git stash push -m "GSD phase completion stash"`
+- For Mercurial: `hg shelve -n "gsd-phase-completion"`
+- Log in PROGRESS.md: `[YYYY-MM-DD HH:MM] Changes stashed before phase completion`
+
+**Option 3 - Discard**:
+- Confirm with user: "This will permanently discard all uncommitted changes. Are you sure? [y/N]"
+- For Git: `git checkout -- . && git clean -fd`
+- For Mercurial: `hg revert --all && hg purge`
+- Log in PROGRESS.md: `[YYYY-MM-DD HH:MM] Uncommitted changes discarded`
+
+**Option 4 - Continue anyway**:
+- Warn: "Proceeding with uncommitted changes may cause issues in future phases."
+- Log in PROGRESS.md: `[YYYY-MM-DD HH:MM] ⚠ Phase completed with uncommitted changes`
+- Proceed to Step 6
+
+After resolving (options 1-3), re-run `vcs-dirty` to confirm clean state before proceeding.
+
 ### Step 6: Phase Completion
 
 When all waves complete:
