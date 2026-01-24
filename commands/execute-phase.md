@@ -14,6 +14,77 @@ You are executing tasks from a GSD project plan. Each task is executed with fres
 
 ## Workflow
 
+## Local Task Cache Strategy
+
+To minimize context bloat from repeated TaskList queries, maintain a local task cache during execution:
+
+### Cache Initialization
+- Query TaskList ONCE at the start of execution
+- Store all tasks matching the project/phase in local variables
+- Track tasks by their Task API ID for quick lookup
+
+### Cache Structure
+```
+task_cache = {
+  tasks: [                    # All tasks for this project/phase
+    {
+      id: "<task-api-id>",
+      subject: "...",
+      status: "pending"|"in_progress"|"completed",
+      blockedBy: ["<task-id>", ...],
+      metadata: { gsd_project, gsd_phase, gsd_task_id, discovered, approved, ... }
+    },
+    ...
+  ],
+  completed_ids: Set(),       # IDs of completed tasks (for fast lookup)
+  last_refresh: timestamp     # When cache was last populated from TaskList
+}
+```
+
+### Cache Operations
+
+**Initialize (once at start):**
+```
+cache = TaskList -> filter by project/phase
+cache.completed_ids = Set(tasks where status == "completed")
+cache.last_refresh = now()
+```
+
+**Find ready tasks (local filtering):**
+```
+ready_tasks = cache.tasks.filter(
+  task.status == "pending" AND
+  task.blockedBy.every(id => cache.completed_ids.has(id))
+)
+```
+
+**Update on completion (local mutation):**
+```
+cache.tasks[task_id].status = "completed"
+cache.completed_ids.add(task_id)
+# DO NOT re-query TaskList
+```
+
+**Refresh (only when necessary):**
+```
+if ready_tasks.empty AND has_pending_tasks:
+  # Re-query to detect deadlock or phase completion
+  cache = TaskList -> filter by project/phase
+  cache.last_refresh = now()
+```
+
+### When to Re-query TaskList
+1. **Initial load** - Start of execute-phase
+2. **Deadlock detection** - No ready tasks but pending tasks exist
+3. **Final verification** - Phase completion check
+4. **Discovered task creation** - After TaskCreate for new discovered tasks
+
+### When NOT to Re-query
+- After marking a task in_progress (local update only)
+- After marking a task completed (local update + add to completed_ids)
+- When finding next ready task (filter from cache)
+- During batch completion reporting (use cache)
+
 ### Step 0: Get Active Project (with Ambiguity Handling)
 
 First, check project status for this repository:
@@ -56,23 +127,44 @@ PLANNING_DIR="$HOME/.claude/planning/projects/$PROJECT"
 
 ### Step 1: Load State
 
-**Primary: Query Task API**
+**Initialize Task Cache (single query for entire execution)**
+
+Query TaskList ONCE and cache locally:
 
 ```
-TaskList -> filter by:
-  - metadata.gsd_project == current_project
-  - metadata.gsd_phase == current_phase
+# Initial cache population
+all_tasks = TaskList
+cache = {
+  tasks: all_tasks.filter(
+    task.metadata.gsd_project == current_project AND
+    task.metadata.gsd_phase == current_phase
+  ),
+  completed_ids: Set(),
+  last_refresh: now()
+}
+
+# Build completed set for fast dependency checking
+for task in cache.tasks:
+  if task.status == "completed":
+    cache.completed_ids.add(task.id)
 ```
 
-This returns all tasks with their status, dependencies, and rich metadata.
+**Derive state from cache:**
+```
+ready_tasks = cache.tasks.filter(
+  task.status == "pending" AND
+  task.blockedBy.every(id => cache.completed_ids.has(id))
+)
+in_progress_tasks = cache.tasks.filter(task.status == "in_progress")
+pending_tasks = cache.tasks.filter(task.status == "pending")
+```
 
-**Determine what to execute:**
-- Ready tasks = tasks where `status == "pending"` AND all `blockedBy` tasks are `completed`
+- If no tasks in cache: report "No tasks found"
 - If no ready tasks and some in_progress: wait for current tasks
 - If all tasks completed: report phase done
 
-**No tasks in Task API:**
-If TaskList returns no tasks for the current project/phase, report:
+**No tasks in cache:**
+If cache contains no tasks for the current project/phase, report:
 ```
 No tasks found in Task API for project: [project-name], phase: [N]
 
@@ -87,50 +179,88 @@ Run:
 
 ### Step 2: Execute Ready Tasks
 
-**Primary: Query Task API for unblocked tasks**
+**Find ready tasks from cache (no API query)**
 
 ```
-TaskList -> filter by:
-  - metadata.gsd_project == current_project
-  - metadata.gsd_phase == current_phase
-  - status == "pending"
-  - blockedBy.length == 0 (no blockers, or all blockers completed)
+ready_tasks = cache.tasks.filter(
+  task.status == "pending" AND
+  task.blockedBy.every(id => cache.completed_ids.has(id))
+)
 ```
 
-Ready tasks are those with no pending dependencies. Execute them, then re-query for newly unblocked tasks.
+Ready tasks are those with no pending dependencies. Execute them, then find newly unblocked tasks from the local cache.
 
-**Execution Loop:**
+**Execution Loop (cache-based):**
 ```
-while has_incomplete_tasks:
-  ready_tasks = TaskList.filter(
-    gsd_project == project AND
-    gsd_phase == phase AND
+while has_incomplete_tasks_in_cache:
+  # Find ready tasks from LOCAL CACHE (no TaskList query)
+  ready_tasks = cache.tasks.filter(
     status == "pending" AND
-    all blockedBy tasks are "completed"
+    all blockedBy IDs are in cache.completed_ids
   )
 
   if ready_tasks.empty:
-    if has_in_progress_tasks:
-      wait for current tasks
+    pending_count = cache.tasks.filter(status == "pending").length
+
+    if pending_count > 0:
+      # Possible deadlock or stale cache - RE-QUERY TaskList
+      cache = refresh_cache_from_TaskList()
+      ready_tasks = find_ready_tasks_from_cache()
+
+      if ready_tasks.empty AND pending_count > 0:
+        # Confirmed deadlock
+        report_deadlock()
+        break
     else:
-      all tasks complete OR deadlock detected
+      # All tasks complete
+      break
 
   for task in ready_tasks:
-    execute(task)  # Updates status to in_progress, then completed
+    execute(task)
+    # After execution, update cache locally (see below)
 
-  # Re-query for newly unblocked tasks
+  # NO re-query here - cache already updated
+```
+
+**After task completion (local cache update):**
+```
+# After TaskUpdate marks task completed:
+cache.tasks[task.id].status = "completed"
+cache.completed_ids.add(task.id)
+# This unblocks dependent tasks without re-querying
 ```
 
 ### Step 2.5: Handle Discovered Tasks
 
 During execution, tasks may discover additional work that wasn't in the original plan. These "discovered tasks" require user approval before execution.
 
-**Check for Discovered Tasks:**
+**Check for Discovered Tasks (from cache):**
 ```
-TaskList -> filter by:
-  - metadata.gsd_project == current_project
-  - metadata.discovered == true
-  - metadata.approved == false
+discovered_unapproved = cache.tasks.filter(
+  task.metadata.discovered == true AND
+  task.metadata.approved != true
+)
+```
+
+**After creating a new discovered task:**
+```
+# TaskCreate returns new task - add to cache manually
+new_task = TaskCreate(...)
+cache.tasks.push({
+  id: new_task.id,
+  subject: new_task.subject,
+  status: "pending",
+  blockedBy: [],
+  metadata: new_task.metadata
+})
+# DO NOT re-query TaskList
+```
+
+**After approving a discovered task:**
+```
+# Update cache locally after TaskUpdate
+cache.tasks[task.id].metadata.approved = true
+# DO NOT re-query TaskList
 ```
 
 **Discovered Task Metadata Schema:**
@@ -381,11 +511,20 @@ Next: [W] tasks ready to execute
 Continue? [Y/n]
 ```
 
-**Checking for newly unblocked tasks:**
+**Checking for newly unblocked tasks (from cache):**
 ```
-TaskList -> filter:
-  - status == "pending"
-  - all blockedBy tasks have status == "completed"
+# No TaskList query needed - cache already updated from completions
+ready_tasks = cache.tasks.filter(
+  task.status == "pending" AND
+  task.blockedBy.every(id => cache.completed_ids.has(id))
+)
+```
+
+If no ready tasks found but pending tasks remain, this triggers a cache refresh:
+```
+if ready_tasks.empty AND cache.tasks.some(t => t.status == "pending"):
+  # Re-query to verify phase state or detect deadlock
+  cache = refresh_cache_from_TaskList()
 ```
 
 If user confirms, proceed to next batch. If not, update state for resume later.
