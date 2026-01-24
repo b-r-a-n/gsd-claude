@@ -9,45 +9,20 @@ Display the current status of the GSD project.
 
 ## Workflow
 
-### Step 0: Get Active Project (with Ambiguity Handling)
-
-First, check project status for this repository:
+### Step 0: Get Active Project
 
 ```bash
-AMBIGUITY=$("~/.claude/commands/gsd/scripts/project.sh" check_project_ambiguity 2>/tmp/gsd-projects)
+PROJECT=$("~/.claude/commands/gsd/scripts/project.sh" get_or_select_project)
+case $? in
+  0) PLANNING_DIR="$HOME/.claude/planning/projects/$PROJECT" ;;
+  1) # $PROJECT contains newline-separated list of available projects
+     # Use AskUserQuestion tool to prompt: "Which project?" with options from $PROJECT
+     # After selection, run: ~/.claude/commands/gsd/scripts/project.sh set_active_project "<selected>"
+     # Then re-run get_or_select_project ;;
+  2) # No projects found
+     echo "No GSD projects found. Run /gsd:commands:new-project or /gsd:commands:discover-projects" ;;
+esac
 ```
-
-Handle each case:
-
-**Case: "none"** - No projects for this repo:
-```
-No GSD projects found for this repository.
-
-Run one of:
-  /gsd:commands:new-project       Create a new project
-  /gsd:commands:discover-projects Find projects from commits
-```
-
-**Case: "single" or "selected"** - Proceed normally:
-```bash
-PROJECT=$("~/.claude/commands/gsd/scripts/project.sh" get_active_project)
-PLANNING_DIR="$HOME/.claude/planning/projects/$PROJECT"
-```
-
-**Case: "ambiguous"** - Multiple projects, no explicit selection:
-1. Read the project list from `/tmp/gsd-projects` (one project per line)
-2. Use the `AskUserQuestion` tool to prompt the user:
-   - Question: "Which project would you like to work on?"
-   - Options: List each project from the file
-3. After user selects, persist the choice:
-   ```bash
-   ~/.claude/commands/gsd/scripts/project.sh set_active_project "<selected-project>"
-   ```
-4. Then get the active project and continue:
-   ```bash
-   PROJECT=$("~/.claude/commands/gsd/scripts/project.sh" get_active_project)
-   PLANNING_DIR="$HOME/.claude/planning/projects/$PROJECT"
-   ```
 
 ### Step 2: Load State (Task API Only)
 
