@@ -1,12 +1,32 @@
 #!/bin/bash
 # State management utilities for GSD
 # Provides atomic operations on STATE.md files
+#
+# DEPRECATION NOTICE:
+# This script is deprecated in favor of Claude's built-in Task API.
+# Use TaskCreate, TaskUpdate, TaskList, and TaskGet instead.
+#
+# Migration guide:
+#   - update_state_status() -> TaskUpdate(taskId, status: "in_progress" | "completed")
+#   - append_state_history() -> Task metadata captures history automatically
+#   - get_current_phase()    -> TaskList filtered by gsd_project, check gsd_phase
+#   - get_current_status()   -> TaskGet(taskId) and check status field
+#
+# This script remains for backward compatibility with existing projects.
+# New projects should use the Task API exclusively.
 
 # Get script directory for sourcing other scripts
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source locking utilities
 source "$SCRIPT_DIR/lock.sh"
+
+# Emit deprecation warning (once per session)
+_GSD_STATE_DEPRECATED_WARNED="${_GSD_STATE_DEPRECATED_WARNED:-}"
+if [ -z "$_GSD_STATE_DEPRECATED_WARNED" ]; then
+  echo "[DEPRECATED] state.sh: Use Claude's Task API (TaskUpdate, TaskGet) instead" >&2
+  export _GSD_STATE_DEPRECATED_WARNED=1
+fi
 
 # Update the current status section in STATE.md
 # Usage: update_state_status <planning_dir> <phase> <task> <status>

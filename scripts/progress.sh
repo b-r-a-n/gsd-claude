@@ -1,12 +1,32 @@
 #!/bin/bash
 # Progress tracking utilities for GSD
 # Provides atomic operations on PROGRESS.md files
+#
+# DEPRECATION NOTICE:
+# This script is deprecated in favor of Claude's built-in Task API.
+# Use TaskCreate, TaskUpdate, TaskList, and TaskGet instead.
+#
+# Migration guide:
+#   - mark_task_complete() -> TaskUpdate(taskId, status: "completed", metadata: {gsd_commit_hash: "..."})
+#   - mark_task_blocked()  -> TaskUpdate(taskId, status: "pending") + add blocker info to description
+#   - get_task_status()    -> TaskGet(taskId) and check status field
+#   - update_progress_status() -> TaskUpdate with appropriate status
+#
+# This script remains for backward compatibility with existing projects.
+# New projects should use the Task API exclusively.
 
 # Get script directory for sourcing other scripts
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source locking utilities
 source "$SCRIPT_DIR/lock.sh"
+
+# Emit deprecation warning (once per session)
+_GSD_PROGRESS_DEPRECATED_WARNED="${_GSD_PROGRESS_DEPRECATED_WARNED:-}"
+if [ -z "$_GSD_PROGRESS_DEPRECATED_WARNED" ]; then
+  echo "[DEPRECATED] progress.sh: Use Claude's Task API (TaskUpdate, TaskList) instead" >&2
+  export _GSD_PROGRESS_DEPRECATED_WARNED=1
+fi
 
 # Mark a task as complete in PROGRESS.md
 # Usage: mark_task_complete <planning_dir> <phase> <task_id> <commit_hash>

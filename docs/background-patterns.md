@@ -10,6 +10,75 @@ Background work in Claude Code can be spawned via:
 
 Both return an ID that must be tracked for later cleanup.
 
+## Recommended: Task API Metadata Tracking
+
+**NEW**: Background work should be tracked in task metadata using the Task API.
+
+### Background Work Metadata Schema
+
+```typescript
+{
+  backgroundWork: [
+    {
+      id: string;           // "shell:abc123" or "task:xyz789"
+      type: "shell" | "task";
+      description: string;
+      spawnedAt: string;    // ISO timestamp
+      status: "running" | "completed" | "failed";
+      outputFile?: string;
+    }
+  ];
+  backgroundSummary: {
+    total: number;
+    running: number;
+    completed: number;
+  };
+}
+```
+
+### Tracking via TaskUpdate
+
+```
+# After spawning a background shell
+Use Bash tool:
+  command: "cargo build 2>&1 | tee /tmp/build.log"
+  run_in_background: true
+# Returns: { "shell_id": "abc123", "output_file": "/path/to/output" }
+
+# Track in task metadata
+TaskUpdate:
+  taskId: "<current-task-id>"
+  metadata:
+    backgroundWork:
+      - id: "shell:abc123"
+        type: "shell"
+        description: "cargo build"
+        spawnedAt: "2024-01-15T14:30:00Z"
+        status: "running"
+        outputFile: "/path/to/output"
+```
+
+### Polling and Completion
+
+```
+# Check status via TaskOutput
+result = TaskOutput(task_id: "abc123", block: false)
+
+if result.complete:
+  # Update metadata to reflect completion
+  TaskUpdate:
+    taskId: "<current-task-id>"
+    metadata:
+      backgroundWork:
+        - id: "shell:abc123"
+          status: "completed"
+          ...
+```
+
+## Legacy: background.sh (Deprecated)
+
+The following patterns use the deprecated `background.sh` script. They remain functional for backward compatibility but new code should use Task API metadata.
+
 ## When to Use Background Execution
 
 ### Use Background When:
@@ -198,6 +267,16 @@ done
 
 ### execute-phase.md
 
+**Primary: Task API metadata tracking**
+
+After each batch completion:
+1. Query `TaskGet(taskId).metadata.backgroundWork` for all tasks
+2. Poll each running item via `TaskOutput`
+3. Prompt user if items are still running
+4. Update metadata with final statuses
+
+**Legacy: background.sh**
+
 After each wave completion:
 1. Check `background.sh list_background`
 2. Poll each item for completion
@@ -207,7 +286,7 @@ After each wave completion:
 ### verify-work.md
 
 Before generating verification report:
-1. Check for any tracked background work
+1. Check for any tracked background work (metadata or STATE.md)
 2. Ensure all items complete before finalizing
 3. Include background work status in report
 
@@ -215,9 +294,55 @@ Before generating verification report:
 
 When implementing tasks that need background work:
 1. Consider if background is truly necessary
-2. Track immediately after spawning
+2. Track immediately after spawning via TaskUpdate
 3. Include completion check before marking task done
 4. Report tracked work to orchestrator
+
+## Discovered Tasks
+
+Tasks may discover additional work during execution. Track these as discovered tasks:
+
+### Discovered Task Metadata Schema
+
+```typescript
+{
+  discovered: true;
+  discoveredBy: string;     // Parent task ID
+  discoveredAt: string;     // ISO timestamp
+  discoveryReason: "blocker" | "prerequisite" | "bug-fix";
+  approved: boolean;        // User must approve
+  priority: "critical" | "high" | "medium" | "low";
+}
+```
+
+### Creating a Discovered Task
+
+```
+TaskCreate:
+  subject: "[D] [project] Fix missing dependency"
+  description: "Discovered during Task 2.1: The authentication module requires..."
+  metadata:
+    gsd_project: "my-app"
+    gsd_phase: 1
+    gsd_task_id: "D-001"
+    gsd_type: "task"
+    discovered: true
+    discoveredBy: "task_id_2_1"
+    discoveredAt: "2024-01-15T14:30:00Z"
+    discoveryReason: "blocker"
+    approved: false
+    priority: "critical"
+```
+
+### Approval Flow
+
+User must approve discovered tasks before execution:
+- **Approve**: Add to execution queue with appropriate blockedBy
+- **Queue**: Save for later batch approval
+- **Reject**: Mark as won't fix
+- **Pause**: Stop execution for investigation
+
+Safety limit: Max 3 discovered tasks per batch before mandatory pause.
 
 ## Troubleshooting
 
@@ -259,8 +384,18 @@ Use `/tasks` command in Claude Code to see all running background work.
 
 ## Related Tools
 
+### Task API (Recommended)
+- `TaskCreate` - Create tasks with metadata for tracking
+- `TaskUpdate` - Update task status and metadata (including backgroundWork)
+- `TaskGet` - Retrieve task details including background work
+- `TaskList` - List all tasks, filter by project/phase
+- `TaskOutput` - Poll background work for completion
+- `TaskStop` - Stop a running background task
+
+### Legacy (Deprecated)
 - `background.sh` - GSD tracking script (`~/.claude/commands/gsd/scripts/background.sh`)
 - `session-gc.sh` - Session garbage collection (`~/.claude/commands/gsd/scripts/session-gc.sh`)
-- `TaskOutput` - Claude Code tool for polling background work
-- `KillShell` - Claude Code tool for terminating background shells
-- `/tasks` - Claude Code command to list all background work
+
+### Claude Code Built-in
+- `KillShell` - Terminate background shells
+- `/tasks` - List all background work (both tracked and untracked)

@@ -30,13 +30,39 @@ Break phases into tasks that:
 4. Include acceptance criteria
 5. Specify affected files/modules
 
-### 3. Wave Organization
+### 3. Dependency Organization
 
-Organize tasks into waves for parallel execution:
-1. Identify task dependencies
-2. Group independent tasks into waves
-3. Order waves by dependency chain
-4. Balance wave sizes for efficiency
+Organize tasks by their dependencies using Claude's Task API `blockedBy` relationships:
+
+1. **Identify Dependencies**
+   - For each task, determine which other tasks must complete first
+   - Express as explicit `blockedBy` relationships
+   - Tasks with no dependencies can run in parallel
+
+2. **Dependency Mapping** (replaces wave grouping)
+   ```
+   Old Wave Model:          New Dependency Model:
+   Wave 1: [A, B]           A: blockedBy: []
+   Wave 2: [C, D]     ->    B: blockedBy: []
+   Wave 3: [E]              C: blockedBy: [A, B]
+                            D: blockedBy: [A, B]
+                            E: blockedBy: [C, D]
+   ```
+
+3. **Benefits**
+   - Fine-grained dependencies (C might only need A, not B)
+   - Dynamic execution order (no rigid wave boundaries)
+   - Automatic parallelism (execute all unblocked tasks)
+
+4. **Task API Integration**
+   ```
+   TaskCreate for task A (no dependencies)
+   TaskCreate for task B (no dependencies)
+   TaskCreate for task C
+   TaskUpdate(C, addBlockedBy: [A, B])
+   ```
+
+**Note**: Waves are still documented in PLAN.md for human readability, but execution uses `blockedBy` relationships from the Task API.
 
 ## Output Format: PLAN.md
 
@@ -49,31 +75,54 @@ Organize tasks into waves for parallel execution:
 ## Context Required
 [What the executor needs to know]
 
-## Waves
+## Tasks
 
-### Wave 1: [Description]
-
-#### Task 1.1: [Title]
+### Task 1.1: [Title]
 - **Files**: [affected files]
 - **Action**: [what to do]
 - **Acceptance**: [how to verify]
+- **Dependencies**: None (can start immediately)
 
-#### Task 1.2: [Title]
+### Task 1.2: [Title]
 - **Files**: [affected files]
 - **Action**: [what to do]
 - **Acceptance**: [how to verify]
+- **Dependencies**: None (can start immediately)
 
-### Wave 2: [Description]
-[Depends on Wave 1 completion]
+### Task 2.1: [Title]
+- **Files**: [affected files]
+- **Action**: [what to do]
+- **Acceptance**: [how to verify]
+- **Dependencies**: Task 1.1, Task 1.2
 
-#### Task 2.1: [Title]
-...
+### Task 3.1: [Title]
+- **Files**: [affected files]
+- **Action**: [what to do]
+- **Acceptance**: [how to verify]
+- **Dependencies**: Task 2.1
+
+## Dependency Graph
+```
+1.1 ──┬──> 2.1 ──> 3.1
+1.2 ──┘
+```
 
 ## Verification
 [How to verify the entire phase is complete]
 
 ## Rollback
 [How to undo if something goes wrong]
+```
+
+**Task API Registration:**
+After creating PLAN.md, register tasks via Task API:
+```
+TaskCreate(1.1) -> id_1_1
+TaskCreate(1.2) -> id_1_2
+TaskCreate(2.1) -> id_2_1
+TaskUpdate(id_2_1, addBlockedBy: [id_1_1, id_1_2])
+TaskCreate(3.1) -> id_3_1
+TaskUpdate(id_3_1, addBlockedBy: [id_2_1])
 ```
 
 ## Guidelines

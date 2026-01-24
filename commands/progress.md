@@ -49,18 +49,41 @@ PLANNING_DIR="$HOME/.claude/planning/projects/$PROJECT"
    PLANNING_DIR="$HOME/.claude/planning/projects/$PROJECT"
    ```
 
-### Step 2: Load State Files
+### Step 2: Load State (Task API Primary, Files Fallback)
 
-Read from the project's planning directory:
+**Primary: Query Task API**
+
+```
+TaskList
+```
+
+Filter tasks by metadata:
+- `gsd_project` matches current project
+- Group by `gsd_phase` for per-phase counts
+- Count by status: pending, in_progress, completed
+
+**Fallback: Read Files**
+
+If no tasks found in Task API (legacy project), read from files:
 1. `$PLANNING_DIR/STATE.md` - Current state
 2. `$PLANNING_DIR/ROADMAP.md` - All phases
 3. `$PLANNING_DIR/phases/*/PROGRESS.md` - Phase completion
 
 ### Step 3: Calculate Progress
 
+**From Task API:**
+```
+For each phase in grouped tasks:
+  total = count(tasks where gsd_phase == phase)
+  completed = count(tasks where gsd_phase == phase AND status == "completed")
+  in_progress = count(tasks where gsd_phase == phase AND status == "in_progress")
+  percentage = (completed / total) * 100
+```
+
+**From Files (fallback):**
 For each phase:
-- Count total tasks
-- Count completed tasks
+- Count total tasks (lines matching `- [ ]` or `- [x]`)
+- Count completed tasks (lines matching `- [x]`)
 - Calculate percentage
 
 Overall:
@@ -117,6 +140,23 @@ Commands:
   /gsd:commands:verify-work      Verify phase 1
   /gsd:commands:set-project      Switch to another project
   /gsd:commands:list-projects    See all projects
+
+Data source: Task API (real-time)
+```
+
+### Task API Progress Display
+
+When using Task API data, show current task details:
+
+```
+Current Task: Task 2.3 - [Title]
+  Status: in_progress
+  Files: [file1.ts, file2.ts]
+  Started: 2024-01-15 14:30
+
+Pending in Phase 2:
+  - Task 2.4: [Title] (blocked by 2.3)
+  - Task 2.5: [Title] (blocked by 2.3, 2.4)
 ```
 
 ### Simplified Output (for quick checks)

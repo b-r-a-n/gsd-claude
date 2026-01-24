@@ -56,7 +56,24 @@ PLANNING_DIR="$HOME/.claude/planning/projects/$PROJECT"
 
 ### Step 1: Load State
 
-Read current state from the project's planning directory:
+**Primary: Query Task API**
+
+```
+TaskList -> filter by:
+  - metadata.gsd_project == current_project
+  - metadata.gsd_phase == current_phase
+```
+
+This returns all tasks with their status, dependencies, and rich metadata.
+
+**Determine what to execute:**
+- Ready tasks = tasks where `status == "pending"` AND all `blockedBy` tasks are `completed`
+- If no ready tasks and some in_progress: wait for current tasks
+- If all tasks completed: report phase done
+
+**Fallback: Read Planning Files**
+
+If no tasks found in Task API (legacy project or migration in progress):
 1. `$PLANNING_DIR/STATE.md` - Current phase and task
 2. `$PLANNING_DIR/phases/phase-XX/PLAN.md` - Task details
 3. `$PLANNING_DIR/phases/phase-XX/PROGRESS.md` - Completion status
@@ -66,34 +83,197 @@ Determine what to execute:
 - If continuing: find first incomplete wave
 - If all complete: report phase done
 
-### Step 2: Execute Wave
+### Step 2: Execute Ready Tasks
 
-For each wave, process tasks. For parallel execution capability, note which tasks can run simultaneously.
+**Primary: Query Task API for unblocked tasks**
+
+```
+TaskList -> filter by:
+  - metadata.gsd_project == current_project
+  - metadata.gsd_phase == current_phase
+  - status == "pending"
+  - blockedBy.length == 0 (no blockers, or all blockers completed)
+```
+
+Ready tasks are those with no pending dependencies. Execute them, then re-query for newly unblocked tasks.
+
+**Execution Loop:**
+```
+while has_incomplete_tasks:
+  ready_tasks = TaskList.filter(
+    gsd_project == project AND
+    gsd_phase == phase AND
+    status == "pending" AND
+    all blockedBy tasks are "completed"
+  )
+
+  if ready_tasks.empty:
+    if has_in_progress_tasks:
+      wait for current tasks
+    else:
+      all tasks complete OR deadlock detected
+
+  for task in ready_tasks:
+    execute(task)  # Updates status to in_progress, then completed
+
+  # Re-query for newly unblocked tasks
+```
+
+**Fallback: Parse PLAN.md waves**
+
+If no tasks found in Task API (legacy project), parse waves from PLAN.md:
+- Wave 1 tasks execute first (parallel)
+- Wave 2 tasks execute after Wave 1 completes
+- etc.
+
+### Step 2.5: Handle Discovered Tasks
+
+During execution, tasks may discover additional work that wasn't in the original plan. These "discovered tasks" require user approval before execution.
+
+**Check for Discovered Tasks:**
+```
+TaskList -> filter by:
+  - metadata.gsd_project == current_project
+  - metadata.discovered == true
+  - metadata.approved == false
+```
+
+**Discovered Task Metadata Schema:**
+```typescript
+{
+  discovered: true;
+  discoveredBy: string;     // Parent task ID that found this
+  discoveredAt: string;     // ISO timestamp
+  discoveryReason: "blocker" | "prerequisite" | "bug-fix";
+  approved: boolean;        // User must approve
+  priority: "critical" | "high" | "medium" | "low";
+}
+```
+
+**Creating a Discovered Task:**
+```
+TaskCreate:
+  subject: "[D] [project] Fix missing dependency"
+  description: "Discovered during Task 2.1..."
+  metadata:
+    gsd_project: "my-app"
+    gsd_phase: 1
+    gsd_task_id: "D-001"
+    gsd_type: "task"
+    discovered: true
+    discoveredBy: "task_id_2_1"
+    discoveredAt: "2024-01-15T14:30:00Z"
+    discoveryReason: "blocker"
+    approved: false
+    priority: "critical"
+```
+
+**User Approval Flow:**
+```
+⚠ Discovered Task Requires Approval
+
+Task: [D-001] Fix missing dependency
+Reason: blocker (discovered by Task 2.1)
+Priority: critical
+
+Options:
+1. Approve - Add to execution queue
+2. Queue - Save for later batch approval
+3. Reject - Mark as won't fix
+4. Pause - Stop execution for investigation
+
+Choice [1]:
+```
+
+**After Approval:**
+```
+TaskUpdate:
+  taskId: "<discovered-task-id>"
+  metadata:
+    approved: true
+  addBlockedBy: [<blocking-task-ids>]  # If it blocks current work
+```
+
+**Safety Limits:**
+- Max 3 discovered tasks per batch before mandatory pause
+- Critical blockers require immediate user decision
+- Log discovered tasks in PROGRESS.md with `[D]` prefix
+
+**PROGRESS.md Entry:**
+```markdown
+- [D] Task D-001: Fix missing dependency - discovered by 2.1 (approved)
+```
 
 **Per-Task Execution Pattern:**
 
 ```
-1. ANNOUNCE task start
-2. READ task details from PLAN.md
+1. MARK task in_progress via TaskUpdate
+2. READ task details from TaskGet or PLAN.md
 3. READ required source files
 4. IMPLEMENT the changes
 5. VERIFY against acceptance criteria
 6. STAGE changed files using VCS
 7. COMMIT with atomic message
-8. UPDATE PROGRESS.md
-9. REPORT completion
+8. MARK task completed via TaskUpdate (with commit hash)
+9. UPDATE PROGRESS.md (audit trail)
+10. REPORT completion
 ```
+
+**Task API Integration:**
+
+Before starting a task:
+```
+TaskUpdate:
+  taskId: "<task-id>"
+  status: "in_progress"
+```
+
+After completing a task:
+```
+TaskUpdate:
+  taskId: "<task-id>"
+  status: "completed"
+  metadata:
+    gsd_commit_hash: "<commit-hash>"
+    gsd_completed_at: "<ISO-timestamp>"
+```
+
+**Note**: The Task API provides real-time status tracking. PROGRESS.md is updated as an audit trail.
 
 ### Step 3: Task Implementation
 
 For each task, follow the executor agent guidelines:
 
 #### 3.1 Understand the Task
-- Read the task specification completely
+
+**Primary: Use TaskGet (no PLAN.md read needed)**
+```
+task = TaskGet(taskId)
+metadata = task.metadata
+
+# Extract from metadata:
+files = metadata.gsd_files           # Files to read/modify
+action = metadata.gsd_action         # What to do
+context = metadata.gsd_context       # Key context
+acceptance = metadata.gsd_acceptance # How to verify
+constraints = metadata.gsd_constraints # Project constraints
+commit_type = metadata.gsd_commit_type # VCS commit type
+```
+
+**Fallback: Read from PLAN.md**
+If task lacks rich metadata (`gsd_action` is null):
+- Read the task specification from PLAN.md completely
 - Identify all affected files
 - Understand the acceptance criteria
 
 #### 3.2 Read Context
+
+**With rich metadata:**
+- Read only files listed in `gsd_files`
+- Context snippet in `gsd_context` often sufficient
+- Constraints in `gsd_constraints` guide implementation
+
+**Without rich metadata (fallback):**
 - Read files listed in the task
 - Read related files if needed for understanding
 - Note existing patterns to follow
@@ -149,7 +329,21 @@ Commit types:
 
 ### Step 4: Update Progress
 
-After each task, update `$PLANNING_DIR/phases/phase-XX/PROGRESS.md`:
+**Primary: Task API (real-time tracking)**
+
+After each task, update via Task API:
+```
+TaskUpdate:
+  taskId: "<task-id>"
+  status: "completed"
+  metadata:
+    gsd_commit_hash: "<commit-hash>"
+    gsd_completed_at: "2024-01-15T14:30:00Z"
+```
+
+**Secondary: PROGRESS.md (audit trail)**
+
+Also update `$PLANNING_DIR/phases/phase-XX/PROGRESS.md` for git-visible history:
 
 ```markdown
 ### Wave 1
@@ -160,7 +354,9 @@ After each task, update `$PLANNING_DIR/phases/phase-XX/PROGRESS.md`:
 
 Note: Commits are automatically tagged with `[project-name]` by the VCS adapter.
 
-And update `$PLANNING_DIR/STATE.md`:
+**Secondary: STATE.md (fallback)**
+
+Update `$PLANNING_DIR/STATE.md` for legacy compatibility:
 
 ```markdown
 ## Current Status
@@ -172,21 +368,34 @@ And update `$PLANNING_DIR/STATE.md`:
 - [YYYY-MM-DD HH:MM] Task X.Y completed
 ```
 
-### Step 5: Wave Completion
+### Step 5: Batch Completion
 
-After completing a wave:
+After completing a batch of ready tasks, report progress:
 
 ```
-✓ Wave [N] Complete
+✓ Batch Complete
 
-Tasks completed: [N]
+Tasks completed this batch: [N]
 Commits: [list of commit hashes]
 
-Next: Wave [N+1] has [M] tasks
+Progress:
+  Completed: [X] / [Total]
+  In Progress: [Y]
+  Pending: [Z] (blocked by in-progress tasks)
+  Ready: [W] (no blockers, can start now)
+
+Next: [W] tasks ready to execute
 Continue? [Y/n]
 ```
 
-If user confirms, proceed to next wave. If not, update state for resume later.
+**Checking for newly unblocked tasks:**
+```
+TaskList -> filter:
+  - status == "pending"
+  - all blockedBy tasks have status == "completed"
+```
+
+If user confirms, proceed to next batch. If not, update state for resume later.
 
 ### Step 5.5: Cleanup Background Work
 

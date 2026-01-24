@@ -21,6 +21,22 @@ You have access to:
 ### 1. Task Execution
 
 For each assigned task:
+
+**Primary: TaskGet Workflow (recommended)**
+1. `TaskGet(taskId)` - Retrieve complete task specification from metadata
+2. Extract context from metadata:
+   - `gsd_files` - Files to read/modify
+   - `gsd_action` - What to do
+   - `gsd_context` - Key context snippet
+   - `gsd_acceptance` - How to verify
+   - `gsd_constraints` - Project constraints to follow
+   - `gsd_commit_type` - VCS commit type
+3. Read only source files listed in `gsd_files`
+4. Implement the changes
+5. Verify against `gsd_acceptance` criteria
+6. Commit using VCS abstraction with `gsd_commit_type`
+
+**Fallback: PLAN.md Workflow (legacy)**
 1. Read the task specification from PLAN.md
 2. Understand the context and requirements
 3. Read relevant source files
@@ -53,6 +69,21 @@ Update PROGRESS.md after each task:
 
 ## Workflow
 
+**Primary Workflow (Task API):**
+```
+1. TaskUpdate(taskId, status: "in_progress")
+2. TaskGet(taskId) -> extract all context from metadata
+3. READ source files from gsd_files
+4. IMPLEMENT changes following gsd_action
+5. VERIFY against gsd_acceptance criteria
+6. STAGE changed files (only those in gsd_files)
+7. COMMIT with gsd_commit_type
+8. TaskUpdate(taskId, status: "completed", metadata: {gsd_commit_hash, gsd_completed_at})
+9. UPDATE PROGRESS.md (audit trail)
+10. REPORT completion
+```
+
+**Fallback Workflow (File-based):**
 ```
 1. READ task from PLAN.md
 2. READ required context files
@@ -62,6 +93,21 @@ Update PROGRESS.md after each task:
 6. COMMIT with atomic message
 7. UPDATE PROGRESS.md
 8. REPORT completion
+```
+
+**Context from TaskGet:**
+```
+task = TaskGet(taskId)
+metadata = task.metadata
+
+# All context available without file reads:
+project = metadata.gsd_project
+constraints = metadata.gsd_constraints
+files = metadata.gsd_files
+action = metadata.gsd_action
+context = metadata.gsd_context
+acceptance = metadata.gsd_acceptance
+commit_type = metadata.gsd_commit_type
 ```
 
 ## Guidelines
@@ -104,24 +150,47 @@ Always use the VCS abstraction layer:
 
 When tasks require long-running operations (builds, tests, monitoring), follow these guidelines.
 
-**CRITICAL**: GSD cannot automatically detect background work spawned with `run_in_background: true`. You **must** explicitly track it immediately after spawning, or it becomes invisible to GSD's cleanup and verification processes.
+### Tracking via Task Metadata (Recommended)
+
+Store background work in task metadata for automatic tracking:
+
+```
+# After spawning background work, update task metadata:
+TaskUpdate:
+  taskId: "<current-task-id>"
+  metadata:
+    backgroundWork:
+      - id: "shell:abc123"
+        type: "shell"
+        description: "cargo build"
+        spawnedAt: "2024-01-15T14:30:00Z"
+        status: "running"
+        outputFile: "/path/to/output"
+```
+
+**Metadata Schema:**
+```typescript
+backgroundWork: [
+  {
+    id: string;           // "shell:abc123" or "task:xyz789"
+    type: "shell" | "task";
+    description: string;
+    spawnedAt: string;    // ISO timestamp
+    status: "running" | "completed" | "failed";
+    outputFile?: string;
+  }
+]
+```
 
 ### DO:
 - **Prefer foreground** for operations under 30 seconds
-- **Track immediately** after spawning background work:
-  ```bash
-  # After spawning background shell
-  ~/.claude/commands/gsd/scripts/background.sh track_background shell <id> "<description>"
-
-  # After spawning background task
-  ~/.claude/commands/gsd/scripts/background.sh track_background task <id> "<description>"
-  ```
+- **Track immediately** after spawning background work via TaskUpdate
 - **Set timeouts** on long-running operations
 - **Check completion** before marking task done
 - **Report tracked work** to the orchestrating agent
 
 ### DON'T:
-- Spawn background work without tracking the ID
+- Spawn background work without tracking in metadata
 - Fire-and-forget long-running operations
 - Use background execution for quick operations
 - Leave orphaned processes/agents running
@@ -129,12 +198,30 @@ When tasks require long-running operations (builds, tests, monitoring), follow t
 ### Completion Check
 
 Before reporting a task complete, verify any background work has finished:
-```bash
-# Check if any background work is tracked
-~/.claude/commands/gsd/scripts/background.sh has_background && echo "Background work still tracked"
 
-# List what's tracked
-~/.claude/commands/gsd/scripts/background.sh list_background
+```
+# Get current task metadata
+task = TaskGet(taskId)
+backgroundWork = task.metadata.backgroundWork
+
+for item in backgroundWork:
+  if item.status == "running":
+    result = TaskOutput(task_id: item.id, block: false)
+    if result.complete:
+      item.status = "completed"
+    else:
+      # Still running - wait or handle
+
+# Update metadata with final statuses
+TaskUpdate(taskId, metadata: {backgroundWork: updated_list})
+```
+
+### Legacy: background.sh (Deprecated)
+
+The `background.sh` script is deprecated but still supported for backward compatibility:
+```bash
+# Deprecated - use TaskUpdate with metadata instead
+~/.claude/commands/gsd/scripts/background.sh track_background shell <id> "<description>"
 ```
 
 See `~/.claude/commands/gsd/docs/background-patterns.md` for detailed patterns and examples.

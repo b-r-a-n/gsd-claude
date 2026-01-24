@@ -1,6 +1,31 @@
 #!/bin/bash
 # Background work tracking utilities for GSD
 # Manages the "Active Background Work" section in STATE.md
+#
+# DEPRECATION NOTICE:
+# This script is deprecated in favor of Claude's Task API metadata-based tracking.
+# Background work should be tracked in task metadata instead of STATE.md.
+#
+# Migration guide:
+#   - track_background() -> TaskUpdate(taskId, metadata: {backgroundWork: [...]})
+#   - list_background()  -> TaskGet(taskId).metadata.backgroundWork
+#   - clear_background() -> TaskUpdate(taskId, metadata: {backgroundWork: updated_list})
+#   - has_background()   -> Check task.metadata.backgroundWork.length > 0
+#
+# New metadata schema for background work:
+#   backgroundWork: [
+#     {
+#       id: "shell:abc123",
+#       type: "shell" | "task",
+#       description: "cargo build",
+#       spawnedAt: "2024-01-15T14:30:00Z",
+#       status: "running" | "completed" | "failed",
+#       outputFile: "/path/to/output"
+#     }
+#   ]
+#
+# This script remains for backward compatibility with existing projects.
+# New projects should use Task API metadata exclusively.
 
 # Get script directory for sourcing other scripts
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,6 +35,13 @@ source "$SCRIPT_DIR/lock.sh"
 
 # Source project utilities for getting planning dir
 source "$SCRIPT_DIR/project.sh"
+
+# Emit deprecation warning (once per session)
+_GSD_BACKGROUND_DEPRECATED_WARNED="${_GSD_BACKGROUND_DEPRECATED_WARNED:-}"
+if [ -z "$_GSD_BACKGROUND_DEPRECATED_WARNED" ]; then
+  echo "[DEPRECATED] background.sh: Use Task API metadata tracking instead" >&2
+  export _GSD_BACKGROUND_DEPRECATED_WARNED=1
+fi
 
 # Section header for background work in STATE.md
 BACKGROUND_SECTION="## Active Background Work"
