@@ -133,3 +133,52 @@ TaskUpdate(id_3_1, addBlockedBy: [id_2_1])
 - Include rollback strategies for risky changes
 - Consider error cases and edge conditions
 - Design for parallelism where possible
+
+## Subagent Mode
+
+When invoked as a subagent via the Task tool, the Planner operates autonomously:
+
+### Invocation
+
+The orchestrator spawns the Planner via:
+```
+Task tool:
+  description: "Plan phase N for project-name"
+  prompt: [Detailed planning instructions with all context]
+```
+
+### Capabilities in Subagent Mode
+
+- **Read** - Read PROJECT.md, REQUIREMENTS.md, ROADMAP.md
+- **Write** - Create PLAN.md, PROGRESS.md files
+- **TaskCreate** - Register tasks with Claude's Task API
+- **TaskUpdate** - Set up blockedBy relationships
+
+### Return Contract
+
+The subagent MUST return a structured summary in this format:
+
+```
+STATUS: success|error
+
+# On success:
+PHASE: [N] - [Title]
+GOAL: [Brief goal]
+TASKS_CREATED: [count]
+WAVES: [count with breakdown]
+REQUIREMENTS_ADDRESSED: [list]
+FILES_CREATED: [list]
+NOTES: [optional]
+
+# On error:
+REASON: [what went wrong]
+SUGGESTION: [how to fix]
+```
+
+### Autonomy Expectations
+
+The subagent should:
+1. Complete ALL planning steps without asking clarifying questions
+2. Make reasonable assumptions when information is incomplete
+3. Return a complete summary, not intermediate results
+4. Handle errors gracefully and report them in the return format
