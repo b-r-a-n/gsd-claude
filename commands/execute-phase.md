@@ -16,74 +16,13 @@ You are executing tasks from a GSD project plan. Each task is executed with fres
 
 ## Local Task Cache Strategy
 
-To minimize context bloat from repeated TaskList queries, maintain a local task cache during execution:
+Minimize context bloat by querying TaskList ONCE at execution start, then maintaining state locally.
 
-### Cache Initialization
-- Query TaskList ONCE at the start of execution
-- Store all tasks matching the project/phase in local variables
-- Track tasks by their Task API ID for quick lookup
-
-### Cache Structure
-```
-task_cache = {
-  tasks: [                    # All tasks for this project/phase
-    {
-      id: "<task-api-id>",
-      subject: "...",
-      status: "pending"|"in_progress"|"completed",
-      blockedBy: ["<task-id>", ...],
-      metadata: { gsd_project, gsd_phase, gsd_task_id, discovered, approved, ... }
-    },
-    ...
-  ],
-  completed_ids: Set(),       # IDs of completed tasks (for fast lookup)
-  last_refresh: timestamp     # When cache was last populated from TaskList
-}
-```
-
-### Cache Operations
-
-**Initialize (once at start):**
-```
-cache = TaskList -> filter by project/phase
-cache.completed_ids = Set(tasks where status == "completed")
-cache.last_refresh = now()
-```
-
-**Find ready tasks (local filtering):**
-```
-ready_tasks = cache.tasks.filter(
-  task.status == "pending" AND
-  task.blockedBy.every(id => cache.completed_ids.has(id))
-)
-```
-
-**Update on completion (local mutation):**
-```
-cache.tasks[task_id].status = "completed"
-cache.completed_ids.add(task_id)
-# DO NOT re-query TaskList
-```
-
-**Refresh (only when necessary):**
-```
-if ready_tasks.empty AND has_pending_tasks:
-  # Re-query to detect deadlock or phase completion
-  cache = TaskList -> filter by project/phase
-  cache.last_refresh = now()
-```
-
-### When to Re-query TaskList
-1. **Initial load** - Start of execute-phase
-2. **Deadlock detection** - No ready tasks but pending tasks exist
-3. **Final verification** - Phase completion check
-4. **Discovered task creation** - After TaskCreate for new discovered tasks
-
-### When NOT to Re-query
-- After marking a task in_progress (local update only)
-- After marking a task completed (local update + add to completed_ids)
-- When finding next ready task (filter from cache)
-- During batch completion reporting (use cache)
+**Cache operations:**
+- **Initialize**: `cache = TaskList -> filter by project/phase`, build `completed_ids` set
+- **Find ready**: Filter tasks where `status == "pending"` and all `blockedBy` IDs are in `completed_ids`
+- **Update on completion**: Set `status = "completed"` in cache, add to `completed_ids` (NO re-query)
+- **Refresh**: Only on deadlock detection (no ready tasks but pending remain) or discovered task creation
 
 ### Step 0: Get Active Project
 
@@ -109,369 +48,121 @@ esac
 
 ### Step 1: Load State
 
-**Initialize Task Cache (single query for entire execution)**
-
-Query TaskList ONCE and cache locally:
-
-```
-# Initial cache population
-all_tasks = TaskList
-cache = {
-  tasks: all_tasks.filter(
-    task.metadata.gsd_project == current_project AND
-    task.metadata.gsd_phase == current_phase
-  ),
-  completed_ids: Set(),
-  last_refresh: now()
-}
-
-# Build completed set for fast dependency checking
-for task in cache.tasks:
-  if task.status == "completed":
-    cache.completed_ids.add(task.id)
-```
-
-**Derive state from cache:**
-```
-ready_tasks = cache.tasks.filter(
-  task.status == "pending" AND
-  task.blockedBy.every(id => cache.completed_ids.has(id))
-)
-in_progress_tasks = cache.tasks.filter(task.status == "in_progress")
-pending_tasks = cache.tasks.filter(task.status == "pending")
-```
-
-- If no tasks in cache: report "No tasks found"
-- If no ready tasks and some in_progress: wait for current tasks
-- If all tasks completed: report phase done
-
-**No tasks in cache:**
-If cache contains no tasks for the current project/phase, report:
-```
-No tasks found in Task API for project: [project-name], phase: [N]
-
-This may indicate:
-- A new session (tasks were not recreated)
-- Phase not yet planned
-
-Run:
-  /gsd:commands:resume-work     Restore tasks from session snapshot
-  /gsd:commands:plan-phase [N]  Create tasks for this phase
-```
+Initialize cache from TaskList (see Cache Strategy above), then derive execution state:
+- **No tasks**: Suggest `/gsd:commands:resume-work` or `/gsd:commands:plan-phase`
+- **No ready tasks + some in_progress**: Wait for current tasks
+- **All completed**: Report phase done
+- **Ready tasks available**: Proceed to execution
 
 ### Step 2: Execute Ready Tasks
 
-**Find ready tasks from cache (no API query)**
-
-```
-ready_tasks = cache.tasks.filter(
-  task.status == "pending" AND
-  task.blockedBy.every(id => cache.completed_ids.has(id))
-)
-```
-
-Ready tasks are those with no pending dependencies. Execute them, then find newly unblocked tasks from the local cache.
-
-**Execution Loop (cache-based):**
-```
-while has_incomplete_tasks_in_cache:
-  # Find ready tasks from LOCAL CACHE (no TaskList query)
-  ready_tasks = cache.tasks.filter(
-    status == "pending" AND
-    all blockedBy IDs are in cache.completed_ids
-  )
-
-  if ready_tasks.empty:
-    pending_count = cache.tasks.filter(status == "pending").length
-
-    if pending_count > 0:
-      # Possible deadlock or stale cache - RE-QUERY TaskList
-      cache = refresh_cache_from_TaskList()
-      ready_tasks = find_ready_tasks_from_cache()
-
-      if ready_tasks.empty AND pending_count > 0:
-        # Confirmed deadlock
-        report_deadlock()
-        break
-    else:
-      # All tasks complete
-      break
-
-  for task in ready_tasks:
-    execute(task)
-    # After execution, update cache locally (see below)
-
-  # NO re-query here - cache already updated
-```
-
-**After task completion (local cache update):**
-```
-# After TaskUpdate marks task completed:
-cache.tasks[task.id].status = "completed"
-cache.completed_ids.add(task.id)
-# This unblocks dependent tasks without re-querying
-```
+**Execution Loop:**
+1. Find ready tasks from cache (pending + all blockedBy IDs in completed_ids)
+2. If no ready tasks but pending remain: refresh cache to detect deadlock
+3. For each ready task: delegate to Executor subagent (Step 3), update cache on completion
+4. Repeat until all tasks complete or deadlock detected
 
 ### Step 2.5: Handle Discovered Tasks
 
-During execution, tasks may discover additional work that wasn't in the original plan. These "discovered tasks" require user approval before execution.
+Tasks may discover additional work during execution. These require user approval:
 
-**Check for Discovered Tasks (from cache):**
-```
-discovered_unapproved = cache.tasks.filter(
-  task.metadata.discovered == true AND
-  task.metadata.approved != true
-)
-```
+1. **Detection**: Check cache for tasks with `metadata.discovered == true && !approved`
+2. **Approval flow**: Present to user with options (Approve/Queue/Reject/Pause)
+3. **After approval**: Update cache locally, set `approved: true`
+4. **Safety**: Max 3 discovered tasks per batch; critical blockers need immediate decision
+5. **Logging**: Mark in PROGRESS.md with `[D]` prefix
 
-**After creating a new discovered task:**
-```
-# TaskCreate returns new task - add to cache manually
-new_task = TaskCreate(...)
-cache.tasks.push({
-  id: new_task.id,
-  subject: new_task.subject,
-  status: "pending",
-  blockedBy: [],
-  metadata: new_task.metadata
-})
-# DO NOT re-query TaskList
-```
+Discovered task metadata: `{ discovered: true, discoveredBy, discoveredAt, discoveryReason, approved, priority }`
 
-**After approving a discovered task:**
-```
-# Update cache locally after TaskUpdate
-cache.tasks[task.id].metadata.approved = true
-# DO NOT re-query TaskList
-```
+### Step 3: Task Execution via Subagent
 
-**Discovered Task Metadata Schema:**
-```typescript
-{
-  discovered: true;
-  discoveredBy: string;     // Parent task ID that found this
-  discoveredAt: string;     // ISO timestamp
-  discoveryReason: "blocker" | "prerequisite" | "bug-fix";
-  approved: boolean;        // User must approve
-  priority: "critical" | "high" | "medium" | "low";
-}
-```
+For each ready task, delegate execution to an Executor subagent. This keeps orchestrator context minimal while the subagent gets fresh context for implementation.
 
-**Creating a Discovered Task:**
-```
-TaskCreate:
-  subject: "[D] [project] Fix missing dependency"
-  description: "Discovered during Task 2.1..."
-  metadata:
-    gsd_project: "my-app"
-    gsd_phase: 1
-    gsd_task_id: "D-001"
-    gsd_type: "task"
-    discovered: true
-    discoveredBy: "task_id_2_1"
-    discoveredAt: "2024-01-15T14:30:00Z"
-    discoveryReason: "blocker"
-    approved: false
-    priority: "critical"
-```
-
-**User Approval Flow:**
-```
-⚠ Discovered Task Requires Approval
-
-Task: [D-001] Fix missing dependency
-Reason: blocker (discovered by Task 2.1)
-Priority: critical
-
-Options:
-1. Approve - Add to execution queue
-2. Queue - Save for later batch approval
-3. Reject - Mark as won't fix
-4. Pause - Stop execution for investigation
-
-Choice [1]:
-```
-
-**After Approval:**
-```
-TaskUpdate:
-  taskId: "<discovered-task-id>"
-  metadata:
-    approved: true
-  addBlockedBy: [<blocking-task-ids>]  # If it blocks current work
-```
-
-**Safety Limits:**
-- Max 3 discovered tasks per batch before mandatory pause
-- Critical blockers require immediate user decision
-- Log discovered tasks in PROGRESS.md with `[D]` prefix
-
-**PROGRESS.md Entry:**
-```markdown
-- [D] Task D-001: Fix missing dependency - discovered by 2.1 (approved)
-```
-
-**Per-Task Execution Pattern:**
+**Subagent Invocation:**
 
 ```
-1. MARK task in_progress via TaskUpdate
-2. READ task details from TaskGet or PLAN.md
-3. READ required source files
-4. IMPLEMENT the changes
-5. VERIFY against acceptance criteria
-6. STAGE changed files using VCS
-7. COMMIT with atomic message
-8. MARK task completed via TaskUpdate (with commit hash)
-9. UPDATE PROGRESS.md (audit trail)
-10. REPORT completion
+Task tool:
+  description: "Execute task [gsd_task_id] for [project-name]"
+  subagent_type: "general-purpose"
+  prompt: |
+    # Executor Subagent: Task [gsd_task_id]
+
+    Execute a single GSD task autonomously.
+
+    ## Input
+    - **Task ID**: [task-api-id]
+    - **Planning Directory**: [planning-dir-path]
+    - **Phase Directory**: [phase-dir-path]
+
+    ## Instructions
+    1. TaskGet([task-id]) to retrieve full task specification
+    2. Read only files listed in gsd_files metadata
+    3. Implement changes per gsd_action
+    4. Verify against gsd_acceptance criteria
+    5. Stage and commit using VCS abstraction
+    6. TaskUpdate to mark completed with commit hash
+    7. Return structured result
+
+    Execute autonomously. Return ONLY the structured result format.
 ```
 
-**Task API Integration:**
+**Handling Subagent Response:**
 
-Before starting a task:
+The subagent returns a structured result:
+
 ```
-TaskUpdate:
-  taskId: "<task-id>"
-  status: "in_progress"
-```
+# On success:
+STATUS: success
+TASK_ID: [task-api-id]
+GSD_TASK: [gsd-task-id]
+TITLE: [task title]
+COMMIT_HASH: [short hash]
+FILES_MODIFIED: [list]
+SUMMARY: [description]
 
-After completing a task:
-```
-TaskUpdate:
-  taskId: "<task-id>"
-  status: "completed"
-  metadata:
-    gsd_commit_hash: "<commit-hash>"
-    gsd_completed_at: "<ISO-timestamp>"
-```
+# On error:
+STATUS: error
+TASK_ID: [task-api-id]
+REASON: [what went wrong]
+SUGGESTION: [how to fix]
 
-**Note**: The Task API provides real-time status tracking. PROGRESS.md is updated as an audit trail.
-
-### Step 3: Task Implementation
-
-For each task, follow the executor agent guidelines:
-
-#### 3.1 Understand the Task
-
-**Use TaskGet for complete task context:**
-```
-task = TaskGet(taskId)
-metadata = task.metadata
-
-# Extract from metadata:
-files = metadata.gsd_files           # Files to read/modify
-action = metadata.gsd_action         # What to do
-context = metadata.gsd_context       # Key context
-acceptance = metadata.gsd_acceptance # How to verify
-constraints = metadata.gsd_constraints # Project constraints
-commit_type = metadata.gsd_commit_type # VCS commit type
+# On blocked:
+STATUS: blocked
+TASK_ID: [task-api-id]
+BLOCKER: [what's blocking]
+OPTIONS: [user choices]
 ```
 
-**Note:** Task API is the sole source of truth for task state and context. PLAN.md is documentation only.
+**After Subagent Returns:**
 
-#### 3.2 Read Context
+1. **On success**: Update local cache, update PROGRESS.md, continue to next task
+2. **On error**: Report to user, mark task as blocked, offer retry/skip options
+3. **On blocked**: Present blocker and options to user for decision
 
-**With rich metadata:**
-- Read only files listed in `gsd_files`
-- Context snippet in `gsd_context` often sufficient
-- Constraints in `gsd_constraints` guide implementation
-
-**If task has minimal metadata:**
-- Read source files listed in task description
-- Read related source files if needed for understanding
-- Note existing patterns to follow
-
-#### 3.3 Implement Changes
-- Make the specified changes
-- Follow existing code style
-- Keep changes minimal and focused
-- Don't make changes outside task scope
-
-#### 3.4 Verify
-- Check acceptance criteria
-- Run tests if specified
-- Verify no regressions
-
-#### 3.5 Commit
-Use the VCS abstraction with explicit verification:
-
-```bash
-# 1. Check what changed
-~/.claude/commands/gsd/scripts/vcs.sh vcs-status
-```
-
-**Compare against task specification:**
-- The task in PLAN.md lists expected files under "Files:" or "Files to modify:"
-- Stage files that match the task specification
-- New files should only be staged if listed in the task spec
-
-**Handle discrepancies:**
-- **Expected file not modified**: May indicate incomplete implementation - verify before proceeding
-- **Unexpected file modified**: Could be scope creep or unintended side effect - investigate before staging
-- **Untracked files not in spec**: Do not stage - either add to .gitignore or note for future task
-
-```bash
-# 2. Stage each file listed in task spec
-~/.claude/commands/gsd/scripts/vcs.sh vcs-stage <file1>
-~/.claude/commands/gsd/scripts/vcs.sh vcs-stage <file2>
-
-# 3. Verify staged changes match expectations
-~/.claude/commands/gsd/scripts/vcs.sh vcs-diff-staged
-
-# 4. Commit with standard format
-~/.claude/commands/gsd/scripts/vcs.sh vcs-atomic-commit <type> <phase> <task> "<description>"
-```
-
-Commit types:
-- `feat` - New feature
-- `fix` - Bug fix
-- `refactor` - Refactoring
-- `docs` - Documentation
-- `test` - Tests
-- `chore` - Maintenance
+**Note:** The subagent handles all implementation details including:
+- Reading task context from TaskGet
+- Reading source files
+- Implementing changes
+- Verifying acceptance criteria
+- Committing via VCS abstraction
+- Updating Task API status
 
 ### Step 4: Update Progress
 
-**Primary: Task API (real-time tracking)**
+After each successful subagent execution:
 
-After each task, update via Task API:
-```
-TaskUpdate:
-  taskId: "<task-id>"
-  status: "completed"
-  metadata:
-    gsd_commit_hash: "<commit-hash>"
-    gsd_completed_at: "2024-01-15T14:30:00Z"
-```
+1. **Update local cache** (no TaskList query):
+   ```
+   cache.tasks[task.id].status = "completed"
+   cache.completed_ids.add(task.id)
+   ```
 
-**Audit Trail: PROGRESS.md (write-only)**
+2. **Update PROGRESS.md** (audit trail):
+   ```markdown
+   - [x] Task 1.1: [Title] - commit: [hash from subagent]
+   ```
 
-Also update `$PLANNING_DIR/phases/phase-XX/PROGRESS.md` for git-visible history:
-
-```markdown
-### Wave 1
-- [x] Task 1.1: [Title] - commit: abc123
-- [x] Task 1.2: [Title] - commit: def456
-- [ ] Task 1.3: [Title]
-```
-
-Note: Commits are automatically tagged with `[project-name]` by the VCS adapter.
-
-**Audit Trail: STATE.md (write-only)**
-
-Update `$PLANNING_DIR/STATE.md` for audit trail:
-
-```markdown
-## Current Status
-- **Phase**: [N]
-- **Task**: [Current task]
-- **Status**: In Progress
-
-## History
-- [YYYY-MM-DD HH:MM] Task X.Y completed
-```
-
-**Note:** STATE.md and PROGRESS.md are write-only for audit purposes. Task API is the sole source of truth for reads.
+**Note:** The subagent handles Task API updates (status, commit hash). The orchestrator only updates local cache and audit files.
 
 ### Step 5: Batch Completion
 
