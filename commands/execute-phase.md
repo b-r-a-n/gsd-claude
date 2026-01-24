@@ -330,6 +330,8 @@ After resolving (options 1-3), re-run `vcs-dirty` to confirm clean state before 
 
 ### Step 6: Phase Completion
 
+**Prerequisite**: Step 5.6 (VCS Clean Check) must have been completed. If the user chose "Continue anyway" with a dirty working directory, include that status in the completion report.
+
 When all waves complete:
 
 ```
@@ -337,6 +339,7 @@ Phase [N] Complete - Project: [project-name]
 
 All [N] tasks completed
 [M] commits made (tagged with [project-name])
+VCS Status: [Clean | Dirty (user acknowledged)]
 
 Updated files:
   $PLANNING_DIR/phases/phase-XX/PROGRESS.md
@@ -354,6 +357,7 @@ Update `$PLANNING_DIR/STATE.md`:
 - **Phase**: [N]
 - **Task**: All complete
 - **Status**: Verification pending
+- **VCS**: [Clean | Dirty - user acknowledged]
 ```
 
 ## Error Handling
