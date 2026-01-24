@@ -24,43 +24,35 @@ This command captures the current state so you can resume seamlessly.
 
 ## Workflow
 
-### Step 0: Get Active Project (with Ambiguity Handling)
-
-First, check project status for this repository:
+### Step 0: Get Active Project
 
 ```bash
-AMBIGUITY=$("~/.claude/commands/gsd/scripts/project.sh" check_project_ambiguity 2>/tmp/gsd-projects)
+PROJECT=$("~/.claude/commands/gsd/scripts/project.sh" get_or_select_project)
 ```
 
-Handle each case:
+Handle by exit code:
 
-**Case: "none"** - No projects for this repo:
+**Exit 0** - Project found, proceed:
+```bash
+PLANNING_DIR="$HOME/.claude/planning/projects/$PROJECT"
+```
+
+**Exit 1** - Multiple projects, user selection needed:
+- `$PROJECT` contains the list of available projects (one per line)
+- Use `AskUserQuestion` tool: "Which project would you like to pause?"
+- After selection, persist and continue:
+  ```bash
+  ~/.claude/commands/gsd/scripts/project.sh set_active_project "<selected>"
+  PROJECT="<selected>"
+  PLANNING_DIR="$HOME/.claude/planning/projects/$PROJECT"
+  ```
+
+**Exit 2** - No projects found:
 ```
 No GSD projects found for this repository. Nothing to pause.
 
 Run /gsd:commands:new-project to create a project first.
 ```
-
-**Case: "single" or "selected"** - Proceed normally:
-```bash
-PROJECT=$("~/.claude/commands/gsd/scripts/project.sh" get_active_project)
-PLANNING_DIR="$HOME/.claude/planning/projects/$PROJECT"
-```
-
-**Case: "ambiguous"** - Multiple projects, no explicit selection:
-1. Read the project list from `/tmp/gsd-projects` (one project per line)
-2. Use the `AskUserQuestion` tool to prompt the user:
-   - Question: "Which project would you like to pause?"
-   - Options: List each project from the file
-3. After user selects, persist the choice:
-   ```bash
-   ~/.claude/commands/gsd/scripts/project.sh set_active_project "<selected-project>"
-   ```
-4. Then get the active project and continue:
-   ```bash
-   PROJECT=$("~/.claude/commands/gsd/scripts/project.sh" get_active_project)
-   PLANNING_DIR="$HOME/.claude/planning/projects/$PROJECT"
-   ```
 
 ### Step 1: Capture Current State
 
