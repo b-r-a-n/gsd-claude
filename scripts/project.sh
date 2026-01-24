@@ -75,46 +75,32 @@ get_projects_for_repo() {
   done
 }
 
-# Check project selection ambiguity for current repo
-# Returns on stdout: "none", "single", "selected", or "ambiguous"
-# When "ambiguous", outputs project list to stderr (one per line)
-check_project_ambiguity() {
-  local repo_state_dir
-  repo_state_dir=$(get_repo_state_dir)
-
-  # Get projects for this repo
-  local repo_projects
-  repo_projects=$(get_projects_for_repo)
-  local project_count
-  project_count=$(echo "$repo_projects" | grep -c . 2>/dev/null || echo 0)
-
-  # No projects for this repo
-  if [ "$project_count" -eq 0 ] || [ -z "$repo_projects" ]; then
-    echo "none"
+# Get active project or list available projects for selection
+# Usage: get_or_select_project
+# Returns:
+#   - Exit 0 + project name on stdout if active project exists
+#   - Exit 1 + project list on stdout if no active project (caller should prompt user)
+#   - Exit 2 if no projects exist for this repo
+get_or_select_project() {
+  # Try to get active project first
+  local active
+  active=$(get_active_project 2>/dev/null)
+  if [ -n "$active" ]; then
+    echo "$active"
     return 0
   fi
 
-  # Check if there's an explicit selection (repo-local current-project)
-  if [ -f "$repo_state_dir/current-project" ]; then
-    local selected
-    selected=$(cat "$repo_state_dir/current-project" | tr -d ' \n')
-    if [ -n "$selected" ]; then
-      echo "selected"
-      return 0
-    fi
+  # No active project - list available projects for this repo
+  local projects
+  projects=$(get_projects_for_repo)
+
+  if [ -z "$projects" ]; then
+    return 2  # No projects exist
   fi
 
-  # Single project - no ambiguity
-  if [ "$project_count" -eq 1 ]; then
-    echo "single"
-    return 0
-  fi
-
-  # Multiple projects, no explicit selection - ambiguous
-  # Output project list to stderr for caller to use
-  echo "$repo_projects" >&2
-  echo "ambiguous"
-  return 0
+  # Output project list for caller to use in selection prompt
+  echo "$projects"
+  return 1  # Caller should prompt user to select
 }
 
 # Compute project ID from repo root and project name
@@ -293,42 +279,52 @@ description: |
 }
 
 # List projects
-# Usage: list_projects [--repo]
+# Usage: list_projects [--repo] [--simple]
 #   --repo: Only show projects for current repository
+#   --simple: Just output project names, one per line (for scripting)
 list_projects() {
   local filter_repo=false
-  if [ "$1" = "--repo" ]; then
-    filter_repo=true
-  fi
+  local simple=false
+
+  for arg in "$@"; do
+    case "$arg" in
+      --repo) filter_repo=true ;;
+      --simple) simple=true ;;
+    esac
+  done
 
   ensure_planning_dirs
 
-  # Get active project (now repo-scoped)
-  local current
-  current=$(get_active_project 2>/dev/null || echo "")
-
-  # Get list of projects to show
+  # Get list of projects
   local projects
   if [ "$filter_repo" = true ]; then
     projects=$(get_projects_for_repo)
   else
-    # All projects
+    # All projects - just read directory names
     projects=""
     for dir in "$PROJECTS_DIR"/*/; do
       [ -d "$dir" ] || continue
-      projects="$projects $(basename "$dir")"
+      projects="${projects:+$projects$'\n'}$(basename "$dir")"
     done
   fi
 
-  # Display each project
-  for name in $projects; do
+  # Simple mode - just output names
+  if [ "$simple" = true ]; then
+    echo "$projects"
+    return 0
+  fi
+
+  # Get active project for display
+  local current
+  current=$(get_active_project 2>/dev/null || echo "")
+
+  # Display each project with marker
+  while IFS= read -r name; do
     [ -z "$name" ] && continue
     local status="  "
     [ "$name" = "$current" ] && status="* "
-    local repo
-    repo=$(grep '^repository:' "$PROJECTS_DIR/$name/project.yml" 2>/dev/null | cut -d' ' -f2-)
-    echo "${status}${name} (${repo})"
-  done
+    echo "${status}${name}"
+  done <<< "$projects"
 }
 
 # Check if project exists
