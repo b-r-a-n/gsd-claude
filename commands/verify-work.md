@@ -6,15 +6,21 @@ args: "[phase_number]"
 
 # Verify Work
 
-You are performing goal-backward verification on completed work, ensuring implementation meets original requirements.
+You are COORDINATING verification of completed work. Your role is to:
+1. Determine project and phase to verify
+2. Delegate ALL verification work to a subagent
+3. Report the results to the user
+
+**CRITICAL**: Do NOT read requirements, run tests, or perform code review yourself.
+Delegate ALL verification work to the subagent to preserve your context.
 
 ## Input
 
-- **Phase number**: $ARGUMENTS (default: current phase from STATE.md)
+- **Phase number**: $ARGUMENTS (optional - defaults to most recent phase with completed tasks)
 
 ## Philosophy: Goal-Backward Verification
 
-Start from the original goals and trace forward to verify implementation, rather than reviewing code and assuming it's correct.
+The verifier subagent will start from the original goals and trace forward to verify implementation, rather than reviewing code and assuming it's correct.
 
 ```
 Requirements → Acceptance Criteria → Implementation → Tests
@@ -64,266 +70,266 @@ PLANNING_DIR="$HOME/.claude/planning/projects/$PROJECT"
    PLANNING_DIR="$HOME/.claude/planning/projects/$PROJECT"
    ```
 
+### Step 1: Determine Phase to Verify
+
+**If phase number provided via $ARGUMENTS:**
+- Use that phase number directly
+- Verify the phase directory exists: `$PLANNING_DIR/phases/phase-XX/`
+
+**If no phase number provided:**
+- Query Task API to find the most recent phase with completed tasks:
+  ```
+  TaskList -> filter by:
+    - metadata.gsd_project == PROJECT
+    - status == "completed"
+  -> find highest gsd_phase value
+  ```
+- If no completed tasks found, report error (see Error Handling)
+
+### Step 2: Delegate to Verifier Subagent
+
+Use the Task tool to spawn a verifier subagent:
+
+```
+Task tool parameters:
+  description: "Verify: Phase [N] of [project-name]"
+  subagent_type: "general-purpose"
+  prompt: <use the subagent prompt template below>
+```
+
+#### Subagent Prompt Template
+
+Pass this prompt to the Task tool, replacing placeholders with actual values:
+
+```
+# Verification Subagent
+
+You are performing goal-backward verification on completed work for a GSD project.
+
+## Context
+
+- **Project**: <PROJECT_NAME>
+- **Phase**: <PHASE_NUMBER>
+- **Planning Directory**: <PLANNING_DIR>
+
+## Instructions
+
+Follow the detailed verification workflow from the verifier agent specification.
+
 ### Step 1: Load Requirements
 
-Read verification context from the project's planning directory:
-1. `$PLANNING_DIR/PROJECT.md` - Success criteria
-2. `$PLANNING_DIR/REQUIREMENTS.md` - Detailed requirements
-3. `$PLANNING_DIR/phases/phase-XX/PLAN.md` - What was planned
+Read these files:
+1. <PLANNING_DIR>/PROJECT.md - Success criteria
+2. <PLANNING_DIR>/REQUIREMENTS.md - Detailed requirements
+3. <PLANNING_DIR>/phases/phase-<PHASE_NUMBER>/PLAN.md - What was planned
 
-**Query Task API for completed work:**
+Query Task API for completed tasks:
 ```
 TaskList -> filter by:
-  - metadata.gsd_project == current_project
-  - metadata.gsd_phase == phase_number
+  - metadata.gsd_project == "<PROJECT_NAME>"
+  - metadata.gsd_phase == <PHASE_NUMBER>
   - status == "completed"
 ```
 
-This provides the authoritative list of what was completed, including commit hashes stored in task metadata.
-
-**Note:** Do not read STATE.md or PROGRESS.md for completion status. Task API is the sole source of truth.
-
 ### Step 2: Map Requirements to Implementation
 
-For each requirement addressed by this phase:
-
-1. **Identify the requirement** (REQ-xxx)
-2. **Find acceptance criteria** from requirements doc
-3. **Locate implementation** (files, functions)
-4. **Verify criteria are met**
-
-Create a verification matrix:
-
-| Requirement | Criteria | Implementation | Status |
-|-------------|----------|----------------|--------|
-| REQ-001 | User can login | auth.ts:login() | ✅ |
-| REQ-002 | Passwords hashed | auth.ts:hashPassword() | ✅ |
-| REQ-003 | Session expires | session.ts:checkExpiry() | ⚠️ Partial |
+Create a verification matrix mapping each requirement to its implementation.
+Trace from requirements → acceptance criteria → implementation → evidence.
 
 ### Step 3: Run Automated Tests
 
-If tests exist, run them:
+Detect and run the appropriate test command for this project:
+- npm test, pytest, cargo test, go test, etc.
 
-```bash
-# Detect and run appropriate test command
-# npm test, pytest, cargo test, go test, etc.
-```
+Report: total, passed, failed, skipped, coverage (if available).
 
-Report results:
-- Total tests
-- Passed / Failed / Skipped
-- Coverage (if available)
-
-### Step 3.5: Check Background Work Status
-
-Before generating the verification report, ensure all background work is complete.
-
-#### 3.5.1 Check for Untracked Background Work
-
-**IMPORTANT**: GSD tracking only knows about background work that was explicitly registered.
-Use `/tasks` to check for any untracked running processes that may have been spawned during execution.
-
-If untracked background work is found:
-```
-⚠ Warning: Untracked background work detected
-
-The following processes were found via /tasks but are not in STATE.md tracking:
-- [list untracked items]
-
-These may have been spawned without proper tracking. Consider:
-1. Waiting for them to complete before verification
-2. Killing orphaned processes if no longer needed
-3. Documenting any known issues in the verification report
-```
-
-#### 3.5.2 Check for Tracked Work
+### Step 4: Check Background Work Status
 
 ```bash
 ~/.claude/commands/gsd/scripts/background.sh list_background
 ```
 
-#### 3.5.3 Poll and Wait for Completion
+For any tracked items, use TaskOutput to check/wait for completion.
 
-For any tracked items:
-
-```
-Use TaskOutput tool:
-  task_id: "<id>"
-  block: false
-  timeout: 1000
-```
-
-If items are still running, wait for completion before proceeding:
-
-```
-⚠ Background work still running:
-  - [list items]
-
-Waiting for completion before generating verification report...
-```
-
-Use `TaskOutput` with `block: true` to wait, or `KillShell` for shell processes if they appear stuck.
-
-#### 3.5.4 Record Status for Report
-
-Note the final status of all background work for inclusion in the verification report:
-- Items that completed successfully
-- Items that failed or were killed
-- Items that timed out
-
-#### 3.5.5 Clear Tracking
-
-After verification:
-
-```bash
-~/.claude/commands/gsd/scripts/background.sh clear_all_background
-```
-
-See `~/.claude/commands/gsd/docs/background-patterns.md` for detailed patterns.
-
-### Step 4: Code Review
+### Step 5: Code Review
 
 Review implementation for:
+- Functionality: Does it work as specified?
+- Quality: Follows patterns, no bugs, no security issues?
+- Completeness: All tasks done, no inappropriate TODOs?
 
-**Functionality**
-- Does it do what was specified?
-- Are edge cases handled?
-- Are error messages helpful?
+Classify issues as: Critical, High, Medium, Low
 
-**Quality**
-- Follows existing patterns?
-- No obvious bugs?
-- No security issues?
+### Step 6: Generate Verification Report
 
-**Completeness**
-- All tasks marked complete actually done?
-- No TODO/FIXME left behind?
-- Documentation updated if needed?
+Write: <PLANNING_DIR>/phases/phase-<PHASE_NUMBER>/VERIFICATION.md
 
-### Step 5: Generate Verification Report (Write-Only)
+Include all sections: Summary, Requirements Compliance, Test Results,
+Background Work Status, Code Review Findings, Manual Checklist, Recommendations.
 
-Create `$PLANNING_DIR/phases/phase-XX/VERIFICATION.md` (audit trail):
+### Step 7: Update State
 
-```markdown
-# Verification Report: Phase [N]
+Update <PLANNING_DIR>/STATE.md with verification result.
 
-**Date**: [YYYY-MM-DD]
-**Verified by**: Claude (GSD Verifier)
+## Return Format
 
-## Summary
+Return ONLY this structured format:
 
-**Overall Status**: [PASS / PASS WITH WARNINGS / FAIL]
+STATUS: [PASS | PASS_WITH_WARNINGS | FAIL]
 
-## Requirements Compliance
+REQUIREMENTS_MET: [X]/[Y]
 
-| Req ID | Title | Status | Evidence |
-|--------|-------|--------|----------|
-| REQ-001 | [Title] | ✅ PASS | [file:line or test] |
-| REQ-002 | [Title] | ⚠️ PARTIAL | [what's missing] |
-| REQ-003 | [Title] | ❌ FAIL | [reason] |
+TEST_RESULTS:
+  total: [N]
+  passed: [N]
+  failed: [N]
+  skipped: [N]
+  coverage: [X%]
 
-**Compliance Rate**: [X/Y] requirements fully met
+ISSUES_FOUND:
+  critical: [N]
+  high: [N]
+  medium: [N]
+  low: [N]
 
-## Automated Tests
+BLOCKING_ISSUES:
+- [Issue 1 brief description]
+- Or "None"
 
-| Metric | Value |
-|--------|-------|
-| Total | [N] |
-| Passed | [N] |
-| Failed | [N] |
-| Skipped | [N] |
-| Coverage | [X%] |
+REPORT_PATH: [full path to VERIFICATION.md]
 
-### Failed Tests
-[Details of any failures, or "None"]
+RECOMMENDATIONS:
+- [Recommendation 1]
+- [Recommendation 2]
 
-## Background Work Status
+## Status Definitions
 
-| Type | ID | Description | Status |
-|------|-----|-------------|--------|
-| shell | abc123 | cargo build | ✅ Completed |
-| task | xyz789 | log monitor | ✅ Completed |
-
-**Summary**: [N] background items tracked, [N] completed successfully, [N] failed/killed
-
-## Code Review Findings
-
-### Issues Found
-
-#### Issue 1: [Title]
-- **Severity**: [Critical/High/Medium/Low]
-- **Location**: [file:line]
-- **Description**: [What's wrong]
-- **Recommendation**: [How to fix]
-
-### Positive Observations
-- [What was done well]
-
-## Manual Verification Checklist
-
-Items requiring human verification:
-
-- [ ] [Item 1 - why it needs manual check]
-- [ ] [Item 2]
-- [ ] [Item 3]
-
-## Recommendations
-
-### Must Fix (Blocking)
-- [Critical issues that must be addressed]
-
-### Should Fix (Non-blocking)
-- [Important issues to address soon]
-
-### Consider (Optional)
-- [Suggestions for improvement]
-
-## Conclusion
-
-[Summary paragraph about the verification results and next steps]
+- PASS: All requirements met, tests passing, no critical/high issues
+- PASS_WITH_WARNINGS: Requirements met, tests passing, but medium/low issues found
+- FAIL: Requirements not met, OR tests failing, OR critical/high issues found
 ```
 
-### Step 6: Update State (Audit Trail)
+### Step 3: Report Results
 
-Update `$PLANNING_DIR/STATE.md` (write-only, for audit trail):
+When the subagent returns, parse and display the results.
 
-```markdown
-## Current Status
-- **Phase**: [N]
-- **Task**: Verification complete
-- **Status**: [Verified / Issues Found]
-
-## History
-- [YYYY-MM-DD HH:MM] Phase [N] verification: [PASS/FAIL]
+**For STATUS: PASS**
 ```
+✓ Verification Complete: Phase [N] - [project-name]
 
-**Note:** STATE.md is write-only for audit purposes. Task API is the source of truth for task status.
+Status: PASS
 
-### Step 7: Report to User
+Requirements: [X]/[Y] fully met
+Tests: [passed]/[total] passed ([coverage])
+Issues: [N] found (0 critical, 0 high, [M] medium, [L] low)
 
-```
-✓ Verification Complete: Phase [N]
+Report: [REPORT_PATH]
 
-Status: [PASS / PASS WITH WARNINGS / FAIL]
-
-Requirements: [X/Y] fully met
-Tests: [passed/total] passed
-Issues: [N] found ([critical], [high], [medium], [low])
-
-Report: $PLANNING_DIR/phases/phase-XX/VERIFICATION.md
-
-[If PASS]
 Next: Run /gsd:commands:plan-phase [N+1] to continue
+```
 
-[If FAIL]
-Action needed: Review issues in verification report
+**For STATUS: PASS_WITH_WARNINGS**
+```
+✓ Verification Complete: Phase [N] - [project-name]
+
+Status: PASS WITH WARNINGS
+
+Requirements: [X]/[Y] fully met
+Tests: [passed]/[total] passed ([coverage])
+Issues: [N] found (0 critical, 0 high, [M] medium, [L] low)
+
+Recommendations:
+  [list from subagent]
+
+Report: [REPORT_PATH]
+
+Next: Consider addressing warnings, then run /gsd:commands:plan-phase [N+1]
+```
+
+**For STATUS: FAIL**
+```
+⚠ Verification Failed: Phase [N] - [project-name]
+
+Status: FAIL
+
+Requirements: [X]/[Y] fully met
+Tests: [passed]/[total] passed ([coverage])
+Issues: [N] found ([C] critical, [H] high, [M] medium, [L] low)
+
+Blocking Issues:
+  [list from subagent]
+
+Recommendations:
+  [list from subagent]
+
+Report: [REPORT_PATH]
+
+Action Required: Address blocking issues before proceeding
+```
+
+## Error Handling
+
+### No Completed Tasks Found
+
+If querying for completed tasks returns none:
+
+```
+⚠ No Completed Tasks Found
+
+No completed tasks found for project [project-name].
+
+This may indicate:
+- Phase execution hasn't started
+- Tasks are still in progress
+
+Run:
+  /gsd:commands:execute-phase    Execute tasks for current phase
+  /gsd:commands:progress         Check current status
+```
+
+### Subagent Timeout or Failure
+
+If the subagent times out or returns an error:
+
+```
+⚠ Verification Subagent Error
+
+Error: [error details]
+
+Options:
+1. Retry verification
+2. Run manual verification (read files yourself)
+3. Skip verification and proceed
+
+Choose [1-3]:
+```
+
+Use AskUserQuestion to get the user's choice:
+- Option 1: Re-invoke the Task tool with the same prompt
+- Option 2: Fall back to reading requirements, running tests, and doing code review directly (not recommended - context heavy)
+- Option 3: Skip verification, warn about risks
+
+### Phase Directory Not Found
+
+If the specified phase directory doesn't exist:
+
+```
+⚠ Phase Not Found
+
+Phase [N] directory not found at: $PLANNING_DIR/phases/phase-[N]/
+
+Available phases:
+  [list existing phase directories]
+
+Run:
+  /gsd:commands:plan-phase [N]   Plan this phase first
 ```
 
 ## Guidelines
 
+- **Delegate, don't execute**: All verification work happens in the subagent
 - Always trace back to original requirements
 - Don't just verify code compiles - verify it works
-- Run actual tests, don't assume they pass
 - Be specific about issues found
 - Provide actionable recommendations
 - Distinguish blocking vs non-blocking issues
