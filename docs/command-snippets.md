@@ -2,84 +2,50 @@
 
 Reusable patterns for GSD command files.
 
-## Step 0: Get Active Project (with Ambiguity Handling)
+## Project Selection Pattern
 
-Use this pattern at the start of commands that need an active project.
+Use this pattern at the start of any command that needs an active project:
 
-### Implementation
+```bash
+PROJECT=$("~/.claude/commands/gsd/scripts/project.sh" get_or_select_project)
+EXIT_CODE=$?
 
-```markdown
-### Step 0: Get Active Project
+case $EXIT_CODE in
+  0)
+    # Project found - proceed
+    PLANNING_DIR="$HOME/.claude/planning/projects/$PROJECT"
+    ;;
+  1)
+    # No active project - prompt user to select
+    # $PROJECT contains newline-separated list of available projects
+    # Use AskUserQuestion to let user choose
+    ;;
+  2)
+    # No projects exist
+    echo "No GSD projects found. Run /gsd:commands:new-project first."
+    ;;
+esac
+```
 
-First, check if there are any projects for this repository and handle ambiguity:
+**Key points:**
+- Single function call replaces complex ambiguity checking
+- Exit codes are self-documenting
+- Caller handles user prompting (keeps shell script simple)
 
-\`\`\`bash
-AMBIGUITY=$("~/.claude/commands/gsd/scripts/project.sh" check_project_ambiguity 2>/tmp/gsd-projects)
-\`\`\`
+### After User Selection
 
-Handle each case:
+When exit code is 1 and user selects a project, persist the choice:
 
-**Case: "none"** - No projects for this repo
-\`\`\`
-No GSD projects found for this repository.
-
-Run one of:
-  /gsd:commands:new-project       Create a new project
-  /gsd:commands:discover-projects Find projects from commits
-\`\`\`
-
-**Case: "single" or "selected"** - Unambiguous, proceed normally
-\`\`\`bash
-PROJECT=$("~/.claude/commands/gsd/scripts/project.sh" get_active_project)
-PLANNING_DIR="$HOME/.claude/planning/projects/$PROJECT"
-\`\`\`
-
-**Case: "ambiguous"** - Multiple projects, no explicit selection
-
-When ambiguous, use the `AskUserQuestion` tool to prompt the user to select a project.
-Read the project list from `/tmp/gsd-projects` and present as options.
-
-After user selects, persist the choice:
-\`\`\`bash
+```bash
 ~/.claude/commands/gsd/scripts/project.sh set_active_project "<selected-project>"
-\`\`\`
-
-Then proceed with `get_active_project` to get the now-selected project.
 ```
 
-### Example Usage in Commands
-
-Commands should check ambiguity first, then either proceed or prompt:
-
-```markdown
-### Step 0: Get Active Project
-
-First, check project status for this repository:
-
-\`\`\`bash
-AMBIGUITY=$("~/.claude/commands/gsd/scripts/project.sh" check_project_ambiguity 2>/tmp/gsd-projects)
-\`\`\`
-
-- If `AMBIGUITY` is "none": Display "No GSD projects found" message and stop
-- If `AMBIGUITY` is "single" or "selected": Continue to get the active project
-- If `AMBIGUITY` is "ambiguous":
-  1. Read project list from `/tmp/gsd-projects`
-  2. Use `AskUserQuestion` tool to prompt: "Which project would you like to work on?"
-  3. Present each project as an option
-  4. After selection, run: `set_active_project "<selected>"`
-  5. Then continue with the command
-
-Once project is determined:
-\`\`\`bash
-PROJECT=$("~/.claude/commands/gsd/scripts/project.sh" get_active_project)
-PLANNING_DIR="$HOME/.claude/planning/projects/$PROJECT"
-\`\`\`
-```
+Then re-run `get_or_select_project` or use the selected project directly.
 
 ## Notes
 
-- The `check_project_ambiguity` function outputs the project list to stderr when ambiguous
-- Redirect stderr to a temp file to capture the list: `2>/tmp/gsd-projects`
+- The `get_or_select_project` function handles all project lookup logic
+- Exit code 1 outputs the project list to stdout for the caller to parse
 - The `AskUserQuestion` tool is a Claude Code tool, not a bash command
 - Always call `set_active_project` after user selection to persist the choice
 
