@@ -85,45 +85,27 @@ if ready_tasks.empty AND has_pending_tasks:
 - When finding next ready task (filter from cache)
 - During batch completion reporting (use cache)
 
-### Step 0: Get Active Project (with Ambiguity Handling)
-
-First, check project status for this repository:
+### Step 0: Get Active Project
 
 ```bash
-AMBIGUITY=$("~/.claude/commands/gsd/scripts/project.sh" check_project_ambiguity 2>/tmp/gsd-projects)
+PROJECT=$("~/.claude/commands/gsd/scripts/project.sh" get_or_select_project)
+case $? in
+  0) PLANNING_DIR="$HOME/.claude/planning/projects/$PROJECT" ;;
+  1) # Use AskUserQuestion with $PROJECT (contains list of available projects) ;;
+  2) # No projects - suggest /gsd:commands:new-project or /gsd:commands:discover-projects ;;
+esac
 ```
 
-Handle each case:
+**Exit code 0**: Project resolved - continue with `$PLANNING_DIR`
 
-**Case: "none"** - No projects for this repo:
-```
-No GSD projects found for this repository.
+**Exit code 1**: Multiple projects need selection
+- `$PROJECT` contains newline-separated list of available projects
+- Use `AskUserQuestion` tool: "Which project would you like to execute?"
+- After selection: `~/.claude/commands/gsd/scripts/project.sh set_active_project "<selected>"`
+- Re-run get_or_select_project to continue
 
-Run one of:
-  /gsd:commands:new-project       Create a new project
-  /gsd:commands:discover-projects Find projects from commits
-```
-
-**Case: "single" or "selected"** - Proceed normally:
-```bash
-PROJECT=$("~/.claude/commands/gsd/scripts/project.sh" get_active_project)
-PLANNING_DIR="$HOME/.claude/planning/projects/$PROJECT"
-```
-
-**Case: "ambiguous"** - Multiple projects, no explicit selection:
-1. Read the project list from `/tmp/gsd-projects` (one project per line)
-2. Use the `AskUserQuestion` tool to prompt the user:
-   - Question: "Which project would you like to execute?"
-   - Options: List each project from the file
-3. After user selects, persist the choice:
-   ```bash
-   ~/.claude/commands/gsd/scripts/project.sh set_active_project "<selected-project>"
-   ```
-4. Then get the active project and continue:
-   ```bash
-   PROJECT=$("~/.claude/commands/gsd/scripts/project.sh" get_active_project)
-   PLANNING_DIR="$HOME/.claude/planning/projects/$PROJECT"
-   ```
+**Exit code 2**: No projects found
+- Suggest: `/gsd:commands:new-project` or `/gsd:commands:discover-projects`
 
 ### Step 1: Load State
 
