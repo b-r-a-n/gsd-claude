@@ -70,16 +70,19 @@ Gather information about current work from the Task API:
 ```
 TaskList -> filter by:
   - metadata.gsd_project == current_project
-  - status == "in_progress"
 ```
 
-Capture:
-1. **Current phase and task** from in_progress tasks in TaskList
-2. **Work in progress** - any uncommitted changes (via VCS)
-3. **Pending decisions** - things waiting for input
-4. **Next steps** - what should happen when resuming
+Extract only:
+1. **in_progress_task_ids** - List of Task API IDs for tasks with status == "in_progress"
+2. **phase_number** - From metadata.gsd_phase of in_progress tasks
+3. **progress_counts** - X/Y format (completed tasks / total tasks)
 
-**Note:** STATE.md is write-only. Current state is read from Task API.
+Additional context to capture:
+4. **Work in progress** - any uncommitted changes (via VCS)
+5. **Pending decisions** - things waiting for input
+6. **Next steps** - what should happen when resuming
+
+**Note:** Do NOT capture task subject, description, metadata, or blockedBy. The Task API is the source of truth for task details.
 
 ### Step 2: Check for Uncommitted Work
 
@@ -124,27 +127,15 @@ Create `$PLANNING_DIR/sessions/session-${SESSION_ID}.md`:
 - Phase [N]: [X/Y] tasks complete
 - Current wave: [X/Y] tasks complete
 
-### Task Snapshot
+### Task API References
 
-Include all tasks from TaskList for this project (for recreation on resume):
+Store only task IDs for reference (full data available via TaskList/TaskGet):
 
-```json
-[
-  {
-    "subject": "[project] Phase X Task Y.Z: Title",
-    "description": "...",
-    "status": "completed|in_progress|pending",
-    "metadata": {
-      "gsd_project": "...",
-      "gsd_phase": N,
-      "gsd_task_id": "Y.Z",
-      ...
-    },
-    "blockedBy": ["task_id_1", "task_id_2"]
-  },
-  ...
-]
-```
+- **In-progress task IDs**: [list from TaskList query]
+- **Phase number**: [current phase]
+- **Progress**: [X/Y] tasks complete
+
+**Note**: Tasks are NOT stored in session files. The Task API is the source of truth.
 
 ### Uncommitted Changes
 [List of modified files, or "None"]
@@ -171,7 +162,7 @@ Include all tasks from TaskList for this project (for recreation on resume):
 
 When resuming this session:
 1. Run: /gsd:commands:set-project [project-name]
-2. Run: /gsd:commands:resume-work (recreates tasks from snapshot)
+2. Run: /gsd:commands:resume-work (queries Task API for current state)
 3. Check out branch: [branch]
 4. Review uncommitted changes (if any)
 5. Continue with: [specific next action]
@@ -236,6 +227,12 @@ To list all projects: /gsd:commands:list-projects
 - Captures full context
 - Good for end of day or longer breaks
 - Include the note in the session file
+
+## Backward Compatibility
+
+Session files created before this change may contain full task snapshots (JSON).
+These can still be resumed - the Task Snapshot section will be ignored.
+Task state is always retrieved from the Task API, not from session files.
 
 ## Guidelines
 
