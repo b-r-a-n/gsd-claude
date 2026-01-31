@@ -204,6 +204,106 @@ if ready_tasks.empty AND cache.tasks.some(t => t.status == "pending"):
 
 If user confirms, proceed to next batch. If not, update state for resume later.
 
+### Step 5.4.5: Wave Reconciliation
+
+After a wave completes, reconcile local cache with Task API to detect and fix discrepancies caused by subagent failures or incomplete updates.
+
+#### 5.4.5.1 Query Authoritative State
+
+Single TaskList query to get current API state:
+```
+api_tasks = TaskList -> filter by project
+```
+
+#### 5.4.5.2 Compare Cache vs API
+
+Detect discrepancies between local cache and API:
+
+| Type | Condition |
+|------|-----------|
+| **Stuck** | API: in_progress, but subagent returned (success/error/blocked) |
+| **Cache ahead** | Cache: completed, API: in_progress/pending |
+| **API ahead** | Cache: pending/in_progress, API: completed |
+| **Missing in cache** | Task in API not in cache |
+| **Missing in API** | Task in cache not in API (deleted) |
+
+**Orchestrator tracking**: During wave execution, track subagent results:
+```
+wave_results = {
+  task_id: {status, commit_hash, error_reason, blocker}
+}
+```
+
+#### 5.4.5.3 Handle No Discrepancies
+
+If cache and API match:
+```
+log_to_progress("Wave reconciliation: Cache and API in sync")
+# Proceed to Step 5.5
+```
+
+#### 5.4.5.4 Present Discrepancies
+
+If discrepancies detected, present to user:
+
+```
+⚠ Wave Reconciliation: Discrepancies Detected
+
+STUCK TASKS (subagent completed but API not updated)
+  Task 2.3: "Add auth middleware" - API: in_progress, Subagent: success (abc123)
+  Task 2.4: "Update routes" - API: in_progress, Subagent: error
+
+STATE MISMATCHES
+  Task 2.5: Cache: completed, API: pending
+
+Options:
+  1. Auto-fix all (recommended) - Apply suggested resolutions
+  2. Review each - Handle discrepancies one by one
+  3. Trust API - Reset cache to match API state
+  4. Skip - Continue with inconsistent state (not recommended)
+```
+
+#### 5.4.5.5 Resolution Strategies
+
+**Auto-fix (default):**
+
+| Discrepancy | Resolution |
+|-------------|------------|
+| Stuck (success) | TaskUpdate -> completed, add `gsd_reconciled` metadata |
+| Stuck (error) | TaskUpdate -> pending, add `gsd_error` metadata |
+| Stuck (blocked) | Keep in_progress, add blocker to metadata |
+| Cache ahead | TaskUpdate API to match cache |
+| API ahead | Update cache to match API |
+| Missing in cache | Add to cache |
+| Missing in API | Remove from cache |
+
+**Review each:** Present individual choices per task
+
+**Trust API:** Reset entire cache from API state
+
+#### 5.4.5.6 Apply and Log
+
+After resolution:
+1. Execute TaskUpdate calls for API changes
+2. Update local cache for consistency
+3. Log to PROGRESS.md:
+
+```markdown
+### Wave Reconciliation [YYYY-MM-DD HH:MM]
+| Task | Discrepancy | Resolution |
+|------|-------------|------------|
+| 2.3 | Stuck (success) | Marked completed (abc123) |
+| 2.4 | Stuck (error) | Reset to pending |
+
+Reconciliation complete: 2 discrepancies resolved
+```
+
+**Edge Cases:**
+- **Task deleted externally**: Remove from cache, log warning
+- **New task in API**: Add to cache, include in ready-task calculation
+- **Duplicate completion**: Log but take no action (race condition)
+- **Empty wave**: Skip stuck detection, still check cache-vs-API drift
+
 ### Step 5.5: Cleanup Background Work
 
 Before proceeding to the next wave or completing the phase, check for any tracked background work.
