@@ -150,7 +150,7 @@ Task tool:
 ### Capabilities in Subagent Mode
 
 - **Read** - Read PROJECT.md, REQUIREMENTS.md, ROADMAP.md
-- **Write** - Create PLAN.md, PROGRESS.md files
+- **Write** - Create PLAN.md files
 - **TaskCreate** - Register tasks with Claude's Task API
 - **TaskUpdate** - Set up blockedBy relationships
 

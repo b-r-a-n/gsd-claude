@@ -70,7 +70,7 @@ Tasks may discover additional work during execution. These require user approval
 2. **Approval flow**: Present to user with options (Approve/Queue/Reject/Pause)
 3. **After approval**: Update cache locally, set `approved: true`
 4. **Safety**: Max 3 discovered tasks per batch; critical blockers need immediate decision
-5. **Logging**: Mark in PROGRESS.md with `[D]` prefix
+5. **Logging**: Discovered tasks tracked in Task API metadata
 
 Discovered task metadata: `{ discovered: true, discoveredBy, discoveredAt, discoveryReason, approved, priority }`
 
@@ -137,7 +137,7 @@ OPTIONS: [user choices]
 
 **After Subagent Returns:**
 
-1. **On success**: Update local cache, update PROGRESS.md, continue to next task
+1. **On success**: Update local cache, continue to next task
 2. **On error**: Report to user, mark task as blocked, offer retry/skip options
 3. **On blocked**: Present blocker and options to user for decision
 
@@ -153,18 +153,13 @@ OPTIONS: [user choices]
 
 After each successful subagent execution:
 
-1. **Update local cache** (no TaskList query):
-   ```
-   cache.tasks[task.id].status = "completed"
-   cache.completed_ids.add(task.id)
-   ```
+**Update local cache** (no TaskList query):
+```
+cache.tasks[task.id].status = "completed"
+cache.completed_ids.add(task.id)
+```
 
-2. **Update PROGRESS.md** (audit trail):
-   ```markdown
-   - [x] Task 1.1: [Title] - commit: [hash from subagent]
-   ```
-
-**Note:** The subagent handles Task API updates (status, commit hash). The orchestrator only updates local cache and audit files.
+**Note:** The subagent handles Task API updates (status, commit hash). The orchestrator only updates local cache. Task API is the source of truth for all progress tracking.
 
 ### Step 5: Batch Completion
 
@@ -286,16 +281,10 @@ Options:
 After resolution:
 1. Execute TaskUpdate calls for API changes
 2. Update local cache for consistency
-3. Log to PROGRESS.md:
-
+3. Log to STATE.md history section:
 ```markdown
-### Wave Reconciliation [YYYY-MM-DD HH:MM]
-| Task | Discrepancy | Resolution |
-|------|-------------|------------|
-| 2.3 | Stuck (success) | Marked completed (abc123) |
-| 2.4 | Stuck (error) | Reset to pending |
-
-Reconciliation complete: 2 discrepancies resolved
+## History
+- [YYYY-MM-DD HH:MM] Wave reconciliation: 2 discrepancies resolved
 ```
 
 **Edge Cases:**
@@ -306,13 +295,16 @@ Reconciliation complete: 2 discrepancies resolved
 
 ### Step 5.5: Cleanup Background Work
 
-Before proceeding to the next wave or completing the phase, check for any tracked background work.
+Before proceeding to the next wave or completing the phase, check for any tracked background work in task metadata.
 
 #### 5.5.1 Check for Tracked Work
 
-```bash
-# List any tracked background work
-~/.claude/commands/gsd/scripts/background.sh list_background
+Query task metadata for background work:
+
+```
+for each task in wave:
+  task = TaskGet(taskId)
+  backgroundWork = task.metadata.backgroundWork || []
 ```
 
 If no tracked work exists, skip to the next step.
@@ -347,21 +339,19 @@ Choice [1]:
 
 **Option 1 - Wait**: Use `TaskOutput` with `block: true` for each item until complete.
 
-**Option 2 - Kill**: For shell items, use `KillShell` tool. Task agents cannot be killed but will eventually timeout.
+**Option 2 - Kill**: For shell items, use `TaskStop` tool. Task agents cannot be killed but will eventually timeout.
 
 **Option 3 - Continue**: Warn that this may cause resource leaks.
 
-#### 5.5.4 Clear Tracking
+#### 5.5.4 Update Metadata
 
-After all background work is handled:
+After all background work is handled, update task metadata to clear the backgroundWork array:
 
-```bash
-~/.claude/commands/gsd/scripts/background.sh clear_all_background
 ```
-
-Log the cleanup in PROGRESS.md:
-```markdown
-[YYYY-MM-DD HH:MM] Background work cleanup: [N] items cleared
+TaskUpdate:
+  taskId: "<task-id>"
+  metadata:
+    backgroundWork: []
 ```
 
 See `~/.claude/commands/gsd/docs/background-patterns.md` for detailed patterns.
@@ -410,22 +400,22 @@ Choice [1]:
 - Ask for commit message
 - Stage all changes: `vcs.sh vcs-stage .`
 - Commit: `vcs.sh vcs-commit "<message>"`
-- Log in PROGRESS.md: `[YYYY-MM-DD HH:MM] Manual commit before phase completion: <hash>`
+- Log in STATE.md history: `[YYYY-MM-DD HH:MM] Manual commit before phase completion: <hash>`
 
 **Option 2 - Stash**:
 - For Git: `git stash push -m "GSD phase completion stash"`
 - For Mercurial: `hg shelve -n "gsd-phase-completion"`
-- Log in PROGRESS.md: `[YYYY-MM-DD HH:MM] Changes stashed before phase completion`
+- Log in STATE.md history: `[YYYY-MM-DD HH:MM] Changes stashed before phase completion`
 
 **Option 3 - Discard**:
 - Confirm with user: "This will permanently discard all uncommitted changes. Are you sure? [y/N]"
 - For Git: `git checkout -- . && git clean -fd`
 - For Mercurial: `hg revert --all && hg purge`
-- Log in PROGRESS.md: `[YYYY-MM-DD HH:MM] Uncommitted changes discarded`
+- Log in STATE.md history: `[YYYY-MM-DD HH:MM] Uncommitted changes discarded`
 
 **Option 4 - Continue anyway**:
 - Warn: "Proceeding with uncommitted changes may cause issues in future phases."
-- Log in PROGRESS.md: `[YYYY-MM-DD HH:MM] ⚠ Phase completed with uncommitted changes`
+- Log in STATE.md history: `[YYYY-MM-DD HH:MM] ⚠ Phase completed with uncommitted changes`
 - Proceed to Step 6
 
 After resolving (options 1-3), re-run `vcs-dirty` to confirm clean state before proceeding.
@@ -444,7 +434,6 @@ All [N] tasks completed
 VCS Status: [Clean | Dirty (user acknowledged)]
 
 Updated files:
-  $PLANNING_DIR/phases/phase-XX/PROGRESS.md
   $PLANNING_DIR/STATE.md
 
 Next steps:
@@ -467,11 +456,7 @@ Update `$PLANNING_DIR/STATE.md`:
 If a task fails:
 
 1. **Don't commit broken code**
-2. Document the failure in PROGRESS.md:
-   ```markdown
-   - [!] Task 1.3: [Title] - BLOCKED: [reason]
-   ```
-3. Update STATE.md with blocked status
+2. Update STATE.md with blocked status
 4. Report to user with details:
    ```
    ⚠ Task 1.3 Blocked

@@ -10,9 +10,9 @@ Background work in Claude Code can be spawned via:
 
 Both return an ID that must be tracked for later cleanup.
 
-## Recommended: Task API Metadata Tracking
+## Task API Metadata Tracking
 
-**NEW**: Background work should be tracked in task metadata using the Task API.
+Background work is tracked in task metadata using the Task API.
 
 ### Background Work Metadata Schema
 

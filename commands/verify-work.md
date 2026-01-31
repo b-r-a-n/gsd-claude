@@ -137,8 +137,12 @@ Report: total, passed, failed, skipped, coverage (if available).
 
 ### Step 4: Check Background Work Status
 
-```bash
-~/.claude/commands/gsd/scripts/background.sh list_background
+Query task metadata for any tracked background work:
+
+```
+for each completed task in phase:
+  task = TaskGet(taskId)
+  backgroundWork = task.metadata.backgroundWork || []
 ```
 
 For any tracked items, use TaskOutput to check/wait for completion.

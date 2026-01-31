@@ -149,13 +149,38 @@ See what's been completed and what remains.
         └── current-project
 ```
 
+## Architecture
+
+GSD uses a layered architecture that separates persistent planning from runtime execution:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         GSD LAYER                               │
+│  (Persistence, Phases, Verification, VCS, Multi-project)        │
+├─────────────────────────────────────────────────────────────────┤
+│  PLAN.md          │  STATE.md       │  VERIFICATION.md          │
+│  (Phase design)   │  (Audit trail)  │  (Quality check)          │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    NATIVE TASK API LAYER                        │
+│           (Runtime task management during execution)            │
+├─────────────────────────────────────────────────────────────────┤
+│  TaskCreate       │  TaskUpdate     │  TaskList / TaskGet       │
+│  (Register tasks) │  (Track status) │  (Query progress)         │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Key Principle**: GSD provides the persistent planning and verification layer; Claude's native Task API provides runtime execution tracking. The Task API is the sole source of truth for task status during execution.
+
 ## How It Works
 
 1. **Project Initialization** - GSD creates a planning structure for your project under `~/.claude/planning/projects/`
 
-2. **Phase Planning** - You define phases with clear objectives, deliverables, and success criteria
+2. **Phase Planning** - You define phases with clear objectives, deliverables, and success criteria. Tasks are registered with Claude's Task API.
 
-3. **Execution** - During execution, GSD maintains context, tracks completed tasks, and updates progress files
+3. **Execution** - During execution, the Task API tracks task status. GSD coordinates execution and maintains context.
 
 4. **Verification** - After execution, verify that deliverables meet the defined criteria
 
@@ -186,7 +211,7 @@ GSD is designed for safe concurrent usage by multiple Claude instances.
 
 ### File Locking
 
-All state file operations (STATE.md, PROGRESS.md, repo-scoped `current-project`) use file locking to prevent race conditions:
+All state file operations (STATE.md, repo-scoped `current-project`) use file locking to prevent race conditions:
 
 - **Linux**: Uses `flock` for advisory locking
 - **macOS**: Uses a custom lock file mechanism for compatibility

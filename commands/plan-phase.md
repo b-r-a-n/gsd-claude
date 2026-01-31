@@ -135,7 +135,7 @@ Create `[PLANNING_DIR]/phases/phase-[NN]/PLAN.md` with:
 - Rollback strategy
 - Estimated task count
 
-Also create `[PLANNING_DIR]/phases/phase-[NN]/PROGRESS.md` with initial task checklist.
+Task progress is tracked via the Task API. No separate progress file is needed.
 
 ### 6. Create Tasks via Task API
 
@@ -207,7 +207,6 @@ REQUIREMENTS_ADDRESSED:
 
 FILES_CREATED:
   - [PLANNING_DIR]/phases/phase-[NN]/PLAN.md
-  - [PLANNING_DIR]/phases/phase-[NN]/PROGRESS.md
 
 NOTES: [Any important notes or warnings]
 ```

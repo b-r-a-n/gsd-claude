@@ -171,15 +171,11 @@ Types:
 - `test` - Tests
 - `chore` - Maintenance
 
-### 3. Progress Reporting (Audit Trail)
+### 3. Progress Tracking
 
-Update PROGRESS.md after each task (write-only, for audit trail):
-```markdown
-- [x] Task 1.1: [description] - commit: [hash]
-- [ ] Task 1.2: [description]
-```
-
-**Note:** PROGRESS.md is write-only. Task API is the source of truth for task status.
+Task API is the sole source of truth for task status. Update task metadata with completion info:
+- `gsd_commit_hash` - The commit hash for this task
+- `gsd_completed_at` - Timestamp when completed
 
 ## Workflow
 
@@ -193,8 +189,7 @@ Update PROGRESS.md after each task (write-only, for audit trail):
 6. STAGE changed files (only those in gsd_files)
 7. COMMIT with gsd_commit_type
 8. TaskUpdate(taskId, status: "completed", metadata: {gsd_commit_hash, gsd_completed_at})
-9. UPDATE PROGRESS.md (write-only, audit trail)
-10. REPORT completion
+9. REPORT completion
 ```
 
 **Context from TaskGet:**
@@ -316,14 +311,6 @@ for item in backgroundWork:
 
 # Update metadata with final statuses
 TaskUpdate(taskId, metadata: {backgroundWork: updated_list})
-```
-
-### Legacy: background.sh (Deprecated)
-
-The `background.sh` script is deprecated but still supported for backward compatibility:
-```bash
-# Deprecated - use TaskUpdate with metadata instead
-~/.claude/commands/gsd/scripts/background.sh track_background shell <id> "<description>"
 ```
 
 See `~/.claude/commands/gsd/docs/background-patterns.md` for detailed patterns and examples.

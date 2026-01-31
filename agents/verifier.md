@@ -150,37 +150,21 @@ Detect and run the appropriate test command:
 
 ### Step 4: Check Background Work Status
 
-#### 4.1 Check for Tracked Work
-
-```bash
-~/.claude/commands/gsd/scripts/background.sh list_background
-```
-
-#### 4.2 Poll for Completion
-
-For any tracked items, check status:
+Query task metadata for any tracked background work:
 
 ```
-TaskOutput tool:
-  task_id: "<id>"
-  block: false
-  timeout: 1000
+for each completed task in phase:
+  task = TaskGet(taskId)
+  backgroundWork = task.metadata.backgroundWork || []
+
+  for each item in backgroundWork:
+    if item.status == "running":
+      result = TaskOutput(task_id: item.id, block: false, timeout: 1000)
+      # If still running, wait for completion:
+      result = TaskOutput(task_id: item.id, block: true, timeout: 30000)
 ```
 
-#### 4.3 Wait if Needed
-
-If items are still running, wait for completion before proceeding:
-
-```
-TaskOutput tool:
-  task_id: "<id>"
-  block: true
-  timeout: 30000
-```
-
-#### 4.4 Record Status
-
-Note the final status of all background work:
+Record the final status of all background work:
 - Items that completed successfully
 - Items that failed or were killed
 - Items that timed out
