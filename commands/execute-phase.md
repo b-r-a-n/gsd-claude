@@ -103,6 +103,8 @@ Task tool:
     6. TaskUpdate to mark completed with commit hash
     7. Return structured result
 
+    **⚠️ CRITICAL**: TaskUpdate is your final action. Implementation success means nothing until TaskUpdate marks the task completed. Without this call, the task remains in_progress and blocks all dependent tasks. Your mission is NOT complete until TaskUpdate has been called.
+
     Execute autonomously. Return ONLY the structured result format.
 ```
 
